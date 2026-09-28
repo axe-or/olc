@@ -105,6 +105,19 @@ using Source_Location = std::source_location;
 
 #define clamp(lo, x, hi) min(max((lo), (x)), (hi))
 
+template<typename T>
+void swap_ptr(T* a, T* b){
+	T tmp = *a;
+	*a = *b;
+	*b = tmp;
+}
+
+template<typename A, typename B = A>
+struct Pair {
+	A a;
+	B b;
+};
+
 // Helpers that use preprocessor expansion tricks to "glue" identifiers
 #define ident_concat0(x, y) x##y
 #define ident_concat1(x, y) ident_concat0(x, y)
@@ -369,7 +382,7 @@ public:
 	attribute_force_inline constexpr auto len(){ return len_; }
 	attribute_force_inline constexpr auto raw_data(){ return data_; }
 
-	constexpr bool operator==(String s){
+	constexpr bool operator==(String s) const {
 		if(s.len_ != len_){ return false; }
 		for(usize i = 0; i < len_; i ++){
 			if(data_[i] != s.data_[i]){ return false; }
@@ -377,7 +390,7 @@ public:
 		return true;
 	}
 
-	constexpr bool operator!=(String s){
+	constexpr bool operator!=(String s) const {
 		return !(*this == s);
 	}
 };
