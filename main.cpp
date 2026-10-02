@@ -1,18 +1,88 @@
-#include <stdio.h>
-#include <assert.h>
 #include "base.hpp"
+#include <cstddef>
 
 template<typename T>
 concept Eq = requires(T const& a, T const& b){
 	{ a == b } -> Convertible_To<bool>;
 };
 
-template<typename T>
-concept Hash = Eq<T> && (requires(T const& obj){ { obj.hash() } -> Convertible_To<u64>; } || Convertible_To<T const&, u64>);
+template<typename H, typename T>
+concept Hasher = requires(H h, T const& k){
+	{ h(k) } -> Convertible_To<u64>;
+};
 
-template<Hash K, typename V>
+template<typename T>
+concept Unsigned_Integer = Same_As<T, unsigned char>
+	|| Same_As<T, unsigned short>
+	|| Same_As<T, unsigned int>
+	|| Same_As<T, unsigned long>
+	|| Same_As<T, unsigned long long>
+	|| Same_As<T, u8>
+	|| Same_As<T, u16>
+	|| Same_As<T, u32>
+	|| Same_As<T, u64>
+;
+
+template<typename T>
+concept Signed_Integer = Same_As<T, char>
+	|| Same_As<T, short>
+	|| Same_As<T, int>
+	|| Same_As<T, long>
+	|| Same_As<T, long long>
+	|| Same_As<T, i8>
+	|| Same_As<T, i16>
+	|| Same_As<T, i32>
+	|| Same_As<T, i64>
+;
+
+template<typename T>
+concept Integer = Signed_Integer<T> || Unsigned_Integer<T>;
+
+template<typename T>
+concept Float = Same_As<T, float> || Same_As<T, double>;
+
+// Default hasher overload
+template<typename T>
+struct hash;
+
+template<Integer T>
+struct hash<T>{
+	u64 operator()(T k){
+		return u64(k);
+	}
+};
+
+template<>
+struct hash<double>{
+	u64 operator()(double k){
+		u64 h = bit_cast<u64>(k);
+		h ^= h >> 30;
+		h *= UINT64_C(0xbf58476d1ce4e5b9);
+		h ^= h >> 27;
+		h *= UINT64_C(0x94d049bb133111eb);
+		h ^= h >> 31;
+		return h;
+	}
+};
+
+template<>
+struct hash<float>{
+	u64 operator()(float k){
+		return hash<double>{}(k);
+	}
+};
+
+
+template<>
+struct hash<String>{
+	u64 operator()(String const& k){
+		return k.hash();
+	}
+};
+
+template<Eq K, typename V>
 struct Map {
-	u64* hashes; // Important: hash == 0 indicates vacant slot
+	u64* hashes; // Important: hash == 0 indicates vacant slot. This is enforced locally with `hash_of`
 	K*   keys;
 	V*   vals;
 
@@ -20,22 +90,15 @@ struct Map {
 	usize capacity;
 	Allocator allocator;
 
-	static
 	u64 hash_of(K const& key){
-		u64 h = key.hash();
+		u64 h = ::hash<K>{}(key);
 		return h == 0 ? 1 : h;
 	}
 
-	u64 desired_position(K const& key) {
-		u64 h = hash_of(key);
-		return usize(h) & (capacity - 1);
-	}
-
-	Pair<usize, bool> find(K const& key){
+	Pair<usize, bool> find_with_hash(K const& key, u64 h){
 		if(capacity == 0){ return {0, false}; }
-
 		usize mask = capacity - 1;
-		usize home = desired_position(key);
+		usize home = h & mask;
 
 		for(usize probe = 0; probe < length; probe += 1){
 			usize pos = (home + probe) & mask;
@@ -43,8 +106,7 @@ struct Map {
 				break;
 			}
 
-			// How far the entry at pos is distant from its home
-			usize dist_pos = (pos - (hashes[pos] & mask)) & mask;
+			usize dist_pos = dist_from_home(pos);
 			if(dist_pos < probe){
 				break;
 			}
@@ -57,14 +119,26 @@ struct Map {
 		return {0, false};
 	}
 
+	Pair<usize, bool> find(K const& key){
+		u64 h = hash_of(key);
+		return find_with_hash(key, h);
+	}
+
+	usize dist_from_home(usize pos){
+		usize mask = capacity - 1;
+		return (pos - (hashes[pos] & mask)) & mask;
+	}
+
+	// Write the provided values into `pos`, writing back to parameters the previous values. This is
+	// used to steal from the rich.
 	void swap_with_slot(usize pos, u64* h, K* key, V* val){
 		swap_ptr(&hashes[pos], h);
 		swap_ptr(&keys[pos], key);
 		swap_ptr(&vals[pos], val);
 	}
 
-	// required Layout a single block holding hashes, keys and vals (in that order)
-	static
+	// Required Layout a single block holding hashes, keys and vals (in that order)
+	static constexpr
 	Memory_Layout block_layout(usize cap){
 		constexpr usize align = max(max(alignof(u64), alignof(K)), alignof(V));
 		// Hashes sit at the (max aligned) start, keys and vals may need up to align-1 bytes of padding each
@@ -117,20 +191,21 @@ struct Map {
 		}
 	}
 
-	void insert(K key, V val){
-		if(length + 1 > (capacity * 7) / 8){
-			reserve(max(capacity * 2, usize(8)));
-		}
+	void insert(K const& key, V const& val){
 		u64 h = hash_of(key);
 		insert_with_hash(h, key, val);
 	}
 
 	void insert_with_hash(u64 h, K key, V val){
+		if(length + 1 > (capacity * 7) / 8){
+			reserve(max(capacity * 2, usize(8)));
+		}
+
 		usize mask = capacity - 1;
 		usize home = h & mask;
 
 		// Distance of the current carry if it were to be placed in the current slot
-		usize d = 0;
+		usize carry_dist = 0;
 
 		for(usize probe = 0; probe < capacity; probe += 1){
 			usize pos = (home + probe) & mask;
@@ -148,23 +223,93 @@ struct Map {
 				return;
 			}
 
-			// How far the entry at pos is distant from its home
-			usize dist_pos = (pos - (hashes[pos] & mask)) & mask;
-			if(dist_pos < d){
-				swap_with_slot(pos, &h, &key, &val);
-				d = dist_pos;
+			usize dist_pos = dist_from_home(pos);
+			if(dist_pos < carry_dist){
+				swap_with_slot(pos, &h, &key, &val); // Steal richer slot and carry it forward
+				carry_dist = dist_pos;
 			}
 
-			d += 1;
+			carry_dist += 1;
 		}
 
 		panic("map should not be full");
 	}
+
+	void remove(K key){
+		u64 h = hash_of(key);
+		remove_with_hash(key, h);
+	}
+
+	void remove_with_hash(K const& key, u64 h){
+		if(length == 0){ return; }
+
+		auto [removed_position, found] = find_with_hash(key, h);
+		if(!found){ return; }
+
+		usize mask = capacity - 1;
+		usize hole_pos = removed_position;
+
+		for(;;){
+			usize next_position = (hole_pos + 1) & mask;
+
+			bool next_is_empty   = hashes[next_position] == 0;
+			bool next_is_at_home = !next_is_empty && dist_from_home(next_position) == 0;
+			if(next_is_empty || next_is_at_home){
+				break;
+			}
+
+			hashes[hole_pos] = hashes[next_position];
+			keys[hole_pos]   = keys[next_position];
+			vals[hole_pos]   = vals[next_position];
+
+			hole_pos = next_position;
+		}
+
+		// Only the hash marks occupancy; stale key/val bytes are fine for trivial types
+		hashes[hole_pos] = 0;
+		length -= 1;
+	}
+
+	// Completely reset, freeing all memory
+	auto reset(){
+		allocator.free(hashes, block_layout(capacity));
+
+		capacity = 0;
+		length = 0;
+		hashes = nullptr;
+		keys = nullptr;
+		vals = nullptr;
+
+		return this;
+	}
+
+	void destroy(){
+		reset();
+	}
 };
 
+template<Eq K, typename V>
+auto make_map(usize capacity, Allocator a){
+	auto m = Map<K, V>{
+		.hashes = nullptr,
+		.keys = nullptr,
+		.vals = nullptr,
+		.length = 0,
+		.capacity = 0,
+		.allocator = a,
+	};
+
+	m.reserve(capacity);
+	return m;
+}
+
+extern "C" int printf(char const*, ...);
+
 int main(){
-	static_assert(Hash<String>, "");
-	static_assert(Hash<float>, "");
+	float x = 30;
+	printf("%0llx\n", hash<float>{}(x));
+	auto vals = make_map<String, float>(64, heap_allocator());
+	vals.insert("foo", 10.5);
 }
 
 #include "base.cpp"

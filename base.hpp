@@ -66,7 +66,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <atomic>
+#include <bit>
 #include <source_location>
+
+using std::bit_cast;
 
 //// Basic types & Utilities
 using i8 = int8_t;
@@ -419,6 +422,34 @@ Rune_Encoded rune_encode(rune r);
 // Decode the first rune of a UTF-8 encoded buffer
 Rune_Decoded rune_decode(u8 const* buf, u32 buflen);
 
+//// Memory
+
+extern "C" {
+	void* memmove(void*, void const*, size_t);
+	void* memcpy(void*, void const*, size_t);
+	void* memset(void*, int, size_t);
+}
+
+attribute_force_inline
+void* mem_copy(void* d, void const* s, usize n){
+	return memmove(d, s, n);
+}
+
+attribute_force_inline
+void* mem_copy_no_overlap(void* d, void const* s, usize n){
+	return memcpy(d, s, n);
+}
+
+attribute_force_inline
+void* mem_set(void* d, u8 v, usize n){
+	return memset(d, v, n);
+}
+
+attribute_force_inline
+void* mem_zero(void* d, usize n){
+	return memset(d, 0, n);
+}
+
 //// Allocator
 
 enum Allocator_Mode : u8 {
@@ -512,3 +543,7 @@ struct Arena {
 };
 
 Arena arena_from_buffer(void* buffer, usize size);
+
+//// Heap allocator
+
+Allocator heap_allocator();

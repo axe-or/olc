@@ -1,4 +1,4 @@
-CXX    ?= clang
+CXX    := clang
 CFLAGS := $(CFLAGS) -std=c++20 -fno-exceptions -fno-rtti -fwrapv -fno-strict-aliasing -O0
 WFLAGS := -Wall -Wextra -Werror=return-type
 

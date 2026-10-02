@@ -257,3 +257,107 @@ uintptr arena_allocator_proc(void* impl, Allocator_Mode mode, void* ptr, Memory_
 Allocator Arena::allocator(){
 	return Allocator{ this, arena_allocator_proc };
 }
+
+//// Heap allocator
+
+static inline
+void* heap_alloc(Memory_Layout layout) {
+	void* p = nullptr;
+
+	if (layout.align <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
+		p = ::operator new(layout.size, std::nothrow);
+	}
+	else {
+		p = ::operator new( layout.size, std::align_val_t{layout.align}, std::nothrow);
+	}
+
+	if (p) {
+		mem_zero(p, layout.size);
+	}
+
+	return p;
+}
+
+static inline
+void heap_free(void* p, Memory_Layout layout) {
+	if (!p) {
+		return;
+	}
+
+	if (layout.align <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
+		::operator delete(p);
+	} else {
+		::operator delete(
+			p,
+			std::align_val_t{layout.align}
+		);
+	}
+}
+
+static inline
+void* heap_realloc(void* ptr, Memory_Layout old, Memory_Layout desired) {
+	if (!ptr) {
+		return heap_alloc(desired);
+	}
+
+	if (desired.size == 0) {
+		heap_free(ptr, old);
+		return nullptr;
+	}
+
+	void* res = heap_alloc(desired);
+	if (!res) {
+		return nullptr;
+	}
+
+	usize copy_size = min(old.size, desired.size);
+
+	mem_copy(res, ptr, copy_size);
+	heap_free(ptr, old);
+
+	return res;
+}
+
+constexpr usize heap_big_allocation_threshold = 64;
+
+static
+uintptr heap_allocator_proc(void*, Allocator_Mode mode, void* ptr, Memory_Layout old, Memory_Layout desired) {
+	void* res = nullptr;
+
+	switch (mode) {
+		case Mem_Query:
+			return Mem_Alloc | Mem_Grow | Mem_Shrink | Mem_Free;
+
+		case Mem_Alloc:
+			res = heap_alloc(desired);
+			return (uintptr)res;
+
+		case Mem_Grow:
+				res = heap_realloc(ptr, old, desired);
+			return (uintptr)res;
+
+			case Mem_Shrink: {
+				bool stricter_alignment = desired.align > old.align;
+				bool worth_reallocating = (old.size > heap_big_allocation_threshold) && (desired.size <= old.size / 2);
+
+				if (!stricter_alignment && !worth_reallocating) {
+					return (uintptr)ptr;
+				}
+
+				return (uintptr)heap_realloc(ptr, old, desired);
+			}
+
+		case Mem_Free:
+			heap_free(ptr, old);
+			return 0;
+
+		case Mem_FreeAll:
+			return 0; /* Unsupported */
+	}
+
+	panic("invalid allocator mode");
+}
+
+Allocator heap_allocator(){
+	return { nullptr, heap_allocator_proc };
+}
