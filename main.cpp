@@ -1,5 +1,5 @@
 #include "base.hpp"
-#include <cstddef>
+#include "lib/rpmalloc.h"
 
 template<typename T>
 concept Eq = requires(T const& a, T const& b){
@@ -305,11 +305,21 @@ auto make_map(usize capacity, Allocator a){
 
 extern "C" int printf(char const*, ...);
 
-int main(){
+void init(){
+	int alloc_init = rpmalloc_initialize(NULL);
+	ensure(alloc_init == 0, "failed to init alloc");
+}
+
+void entrypoint(){
 	float x = 30;
 	printf("%0llx\n", hash<float>{}(x));
 	auto vals = make_map<String, float>(64, heap_allocator());
 	vals.insert("foo", 10.5);
+}
+
+int main(){
+	init();
+	entrypoint();
 }
 
 #include "base.cpp"

@@ -1,4 +1,6 @@
 #include "base.hpp"
+#include "lib/rpmalloc.h"
+#include <cstddef>
 #include <string.h>
 
 //// Assertions
@@ -262,60 +264,28 @@ Allocator Arena::allocator(){
 
 static inline
 void* heap_alloc(Memory_Layout layout) {
-	void* p = nullptr;
-
-	if (layout.align <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
-		p = ::operator new(layout.size, std::nothrow);
-	}
-	else {
-		p = ::operator new( layout.size, std::align_val_t{layout.align}, std::nothrow);
-	}
-
-	if (p) {
-		mem_zero(p, layout.size);
-	}
-
-	return p;
+	ensure(, "invalid arena alignment");
+	return rpaligned_zalloc(layout.align, layout.size);
 }
 
 static inline
-void heap_free(void* p, Memory_Layout layout) {
-	if (!p) {
-		return;
-	}
-
-	if (layout.align <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
-		::operator delete(p);
-	} else {
-		::operator delete(
-			p,
-			std::align_val_t{layout.align}
-		);
-	}
+void heap_free(void* p, Memory_Layout) {
+	return rpfree(p);
 }
 
 static inline
 void* heap_realloc(void* ptr, Memory_Layout old, Memory_Layout desired) {
-	if (!ptr) {
-		return heap_alloc(desired);
+	if(old.align == desired.align){
+		return rpaligned_realloc(ptr, old.align, desired.size, old.size, 0);
 	}
 
-	if (desired.size == 0) {
-		heap_free(ptr, old);
-		return nullptr;
+	void* data = rpaligned_zalloc(desired.align, desired.size);
+	usize n = min(old.size, desired.size);
+	if(data){
+		mem_copy_no_overlap(data, ptr, n);
+		rpfree(ptr);
 	}
-
-	void* res = heap_alloc(desired);
-	if (!res) {
-		return nullptr;
-	}
-
-	usize copy_size = min(old.size, desired.size);
-
-	mem_copy(res, ptr, copy_size);
-	heap_free(ptr, old);
-
-	return res;
+	return data;
 }
 
 constexpr usize heap_big_allocation_threshold = 64;

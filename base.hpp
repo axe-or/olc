@@ -425,27 +425,27 @@ Rune_Decoded rune_decode(u8 const* buf, u32 buflen);
 //// Memory
 
 extern "C" {
-	void* memmove(void*, void const*, size_t);
-	void* memcpy(void*, void const*, size_t);
-	void* memset(void*, int, size_t);
+	void* memmove(void*, void const*, size_t) noexcept;
+	void* memcpy(void*, void const*, size_t) noexcept;
+	void* memset(void*, int, size_t) noexcept;
 }
 
-attribute_force_inline
+static inline attribute_force_inline
 void* mem_copy(void* d, void const* s, usize n){
 	return memmove(d, s, n);
 }
 
-attribute_force_inline
+static inline attribute_force_inline
 void* mem_copy_no_overlap(void* d, void const* s, usize n){
 	return memcpy(d, s, n);
 }
 
-attribute_force_inline
+static inline attribute_force_inline
 void* mem_set(void* d, u8 v, usize n){
 	return memset(d, v, n);
 }
 
-attribute_force_inline
+static inline attribute_force_inline
 void* mem_zero(void* d, usize n){
 	return memset(d, 0, n);
 }
@@ -466,6 +466,11 @@ struct Memory_Layout {
 	usize size;
 	usize align;
 };
+
+constexpr
+bool valid_alignment(usize align){
+	return align != 0 && (align & (align - 1)) == 0;
+}
 
 template<typename T>
 constexpr auto layout_of(){
