@@ -264,7 +264,6 @@ Allocator Arena::allocator(){
 
 static inline
 void* heap_alloc(Memory_Layout layout) {
-	ensure(, "invalid arena alignment");
 	return rpaligned_zalloc(layout.align, layout.size);
 }
 
