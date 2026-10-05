@@ -1,6 +1,5 @@
 #include "base.hpp"
-#include "lib/rpmalloc.h"
-#include "testing.hpp"
+#include "lib/tlsf.h"
 
 extern "C" int printf(char const*, ...);
 
@@ -310,10 +309,12 @@ void entrypoint(){
 }
 
 void init(){
-	int alloc_init = rpmalloc_initialize(NULL);
-	ensure(alloc_init == 0, "failed to init alloc");
-}
+	u8 static allocator_data[16ull * 1024ull * 1024ull] = {0};
+	tlsf_t allocator = tlsf_create_with_pool(&allocator_data[0], sizeof(allocator_data));
 
+	printf("TLSF size: %zu\n", tlsf_size());
+	ensure(sizeof(allocator_data) >= tlsf_size(), "not enough size for TLSF structure");
+}
 
 int main(){
 	init();

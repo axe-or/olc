@@ -425,9 +425,9 @@ Rune_Decoded rune_decode(u8 const* buf, u32 buflen);
 //// Memory
 
 extern "C" {
-	void* memmove(void*, void const*, size_t) noexcept;
-	void* memcpy(void*, void const*, size_t) noexcept;
-	void* memset(void*, int, size_t) noexcept;
+	void* memmove(void*, void const*, size_t);
+	void* memcpy(void*, void const*, size_t);
+	void* memset(void*, int, size_t);
 }
 
 static inline attribute_force_inline

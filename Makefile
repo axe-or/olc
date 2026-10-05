@@ -1,6 +1,8 @@
 CC     := clang
 CFLAGS := $(CFLAGS) -fwrapv -fno-strict-aliasing -O0
-CXXFLAGS := $(CFLAGS) -std=c++20 -fno-exceptions -fno-rtti 
+
+CXX      := clang++
+CXXFLAGS := $(CFLAGS) -std=c++20 -fno-exceptions -fno-rtti
 
 WFLAGS := -Wall -Wextra -Werror=return-type
 
@@ -11,11 +13,13 @@ SRC := $(wildcard *.cpp *.hpp)
 run: olc.exe
 	./olc.exe
 
-lib/rpmalloc.o: lib/rpmalloc.c
-	$(CC) $(CFLAGS) $(WFLAGS) -o lib/rpmalloc.o -c lib/rpmalloc.c
+tlsf.o: lib/tlsf.c lib/tlsf.h
+	$(CC) $(CFLAGS) -c lib/tlsf.c -o tlsf.o
 
-olc.exe: $(SRC) lib/rpmalloc.o
-	$(CC) $(CXXFLAGS) $(WFLAGS) -o olc.exe lib/rpmalloc.o main.cpp
+olc.exe: $(SRC) tlsf.o
+	$(CXX) $(CXXFLAGS) $(WFLAGS) -o olc.exe main.cpp tlsf.o
+
+CLEAN_GLOB := *.o *.exe *.pdb *.exp *.ilk
 
 clean:
-	rm -rf *.o *.exe *.pdb *.exp *.ilk
+	rm -rf  $(CLEAN_GLOB) || del  $(CLEAN_GLOB)

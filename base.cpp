@@ -1,5 +1,4 @@
 #include "base.hpp"
-#include "lib/rpmalloc.h"
 #include <cstddef>
 #include <string.h>
 
@@ -261,7 +260,7 @@ Allocator Arena::allocator(){
 }
 
 //// Heap allocator
-
+#if 0
 static inline
 void* heap_alloc(Memory_Layout layout) {
 	return rpaligned_zalloc(layout.align, layout.size);
@@ -330,3 +329,4 @@ uintptr heap_allocator_proc(void*, Allocator_Mode mode, void* ptr, Memory_Layout
 Allocator heap_allocator(){
 	return { nullptr, heap_allocator_proc };
 }
+#endif
