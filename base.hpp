@@ -473,8 +473,8 @@ bool valid_alignment(usize align){
 }
 
 template<typename T>
-constexpr auto layout_of(){
-	return Memory_Layout{ sizeof(T), alignof(T) };
+constexpr auto layout_of(usize count = 0){
+	return Memory_Layout{ sizeof(T) * count, alignof(T) };
 }
 
 using Allocator_Proc = uintptr (*) (void* impl, Allocator_Mode mode, void* ptr, Memory_Layout old, Memory_Layout desired);
@@ -552,3 +552,146 @@ Arena arena_from_buffer(void* buffer, usize size);
 //// Heap allocator
 
 Allocator heap_allocator();
+
+//// Dynamic array
+
+template<typename T>
+struct Dyn_Array {
+	T* data;
+	usize length;
+	usize capacity;
+
+	Allocator allocator;
+
+	bool reserve(usize desired){
+		if(capacity >= desired){
+			return true;
+		}
+
+		void* p = allocator.grow(data, layout_of<T>(capacity), layout_of<T>(desired));
+		if(!p){
+			return false;
+		}
+
+		data = p;
+		capacity = desired;
+		return true;
+	}
+
+	bool shrink_to_fit(){
+		void* p = allocator.shrink(data, layout_of<T>(length));
+		if(!p){ return false; }
+		data = p;
+		capacity = length;
+	}
+
+	// Insert value at `idx`, shifting all elements
+	bool insert(usize idx, T const& val){
+		if(idx > length){ return false; }
+		if(length == capacity){
+			usize desired = max(16, capacity * 2);
+			if(desired < capacity || !reserve(desired)){ return false; }
+		}
+		for(usize i = length; i > idx; i -= 1){
+			data[i] = data[i - 1];
+		}
+		data[idx] = val;
+		length += 1;
+		return true;
+	}
+
+	// Insert value at `idx` by swapping the value at position with the last value
+	bool insert_swap(usize idx, T const& val){
+		if(idx > length){ return false; }
+		if(length == capacity){
+			usize desired = capacity == 0 ? 8 : capacity * 2;
+			if(desired < capacity || !reserve(desired)){
+				return false;
+			}
+		}
+
+		if(idx < length){
+			data[length] = data[idx];
+		}
+
+		data[idx] = val;
+		length += 1;
+		return true;
+	}
+
+	// Remove value `idx`, shifting all elements
+	bool remove(usize idx){
+		if(idx >= length){ return false; }
+		for(usize i = idx; i + 1 < length; i += 1){
+			data[i] = data[i + 1];
+		}
+		length -= 1;
+		return true;
+	}
+
+	// Remove value at `idx` by swapping the value at position with the last value
+	bool remove_swap(usize idx){
+		if(idx >= length){ return false; }
+		length -= 1;
+		if(idx < length){
+			data[idx] = data[length];
+		}
+		return true;
+	}
+
+	// Push item to end of array
+	bool append(T const& val){
+		return insert_swap(length, val);
+	}
+
+	// Pop last item of array
+	bool pop(){
+		if(length == 0){ return false; }
+		length -= 1;
+		return true;
+	}
+
+	T& operator[](usize idx){
+		ensure(idx < length, "slice index out of bounds");
+		return data[idx];
+	}
+
+	T const& operator[](usize idx) const{
+		ensure(idx < length, "slice index out of bounds");
+		return data[idx];
+	}
+
+	Slice<T> take(usize n){
+		ensure(n <= length, "cannot take more than length");
+		return Slice<T>{ data, n };
+	}
+
+	Slice<T> skip(usize n){
+		ensure(n <= length, "cannot take more than length");
+		return Slice<T>{ &data[n], length - n };
+	}
+
+	Slice<T> slice(usize start, usize end){
+		ensure(start <= length && end >= start, "invalid slice indices");
+		return Slice<T>{ &data[start], end - start };
+	}
+
+	void destroy(){
+		for(usize i = 0; i < length; i += 1){
+			data[i].~T();
+		}
+		allocator.free(data, layout_of<T>(capacity));
+	}
+};
+
+template<typename T>
+auto make_dynamic_array(usize initial_cap, Allocator alloc){
+	Dyn_Array<T> arr = {
+		.data = nullptr,
+		.length = 0,
+		.capacity = 0,
+		.allocator = alloc,
+	};
+	arr.reserve(initial_cap);
+	return arr;
+}

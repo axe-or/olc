@@ -1,5 +1,6 @@
 #include "base.hpp"
 #include "lib/tlsf.h"
+#include <cerrno>
 
 extern "C" int printf(char const*, ...);
 
@@ -55,8 +56,8 @@ struct hash<T>{
 };
 
 template<>
-struct hash<double>{
-	u64 operator()(double k){
+struct hash<double> {
+	u64 operator()(double k) const {
 		u64 h = bit_cast<u64>(k);
 		h ^= h >> 30;
 		h *= UINT64_C(0xbf58476d1ce4e5b9);
@@ -69,7 +70,7 @@ struct hash<double>{
 
 template<>
 struct hash<float>{
-	u64 operator()(float k){
+	u64 operator()(float k) const {
 		return hash<double>{}(k);
 	}
 };
@@ -77,12 +78,12 @@ struct hash<float>{
 
 template<>
 struct hash<String>{
-	u64 operator()(String const& k){
+	u64 operator()(String const& k) const {
 		return k.hash();
 	}
 };
 
-template<Eq K, typename V>
+template<Eq K, typename V, Hasher<K> auto const hash = ::hash<K>{}>
 struct Map {
 	u64* hashes; // Important: hash == 0 indicates vacant slot. This is enforced locally with `hash_of`
 	K*   keys;
@@ -93,7 +94,7 @@ struct Map {
 	Allocator allocator;
 
 	u64 hash_of(K const& key){
-		u64 h = ::hash<K>{}(key);
+		u64 h = hash(key);
 		return h == 0 ? 1 : h;
 	}
 
@@ -314,6 +315,9 @@ void init(){
 
 	printf("TLSF size: %zu\n", tlsf_size());
 	ensure(sizeof(allocator_data) >= tlsf_size(), "not enough size for TLSF structure");
+	auto map = make_map<String, i32>(56, Arena{}.allocator());
+	map.insert("bruh", 69);
+
 }
 
 int main(){
