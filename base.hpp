@@ -492,10 +492,12 @@ struct Allocator {
 	}
 
 	attribute_force_inline void* grow(void* ptr, Memory_Layout old, Memory_Layout desired) const {
+		ensure(desired.size >= old.size, "grow() must increase allocation size");
 		return (void*)(proc_(impl_, Mem_Grow, ptr, old, desired));
 	}
 
 	attribute_force_inline void* shrink(void* ptr, Memory_Layout old, Memory_Layout desired) const {
+		ensure(desired.size <= old.size, "shrink() must decrease allocation size");
 		return (void*)(proc_(impl_, Mem_Shrink, ptr, old, desired));
 	}
 
@@ -550,8 +552,19 @@ struct Arena {
 Arena arena_from_buffer(void* buffer, usize size);
 
 //// Heap allocator
+struct Heap_Allocator {
+	void* impl;
 
-Allocator heap_allocator();
+	void* alloc(Memory_Layout layout);
+
+	void free(void* p);
+
+	void* realloc(void* ptr, Memory_Layout old, Memory_Layout desired);
+
+	Allocator allocator();
+};
+
+Heap_Allocator heap_from_buffer(Slice<u8> buf);
 
 //// Dynamic array
 

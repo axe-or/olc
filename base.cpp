@@ -1,4 +1,5 @@
 #include "base.hpp"
+#include "lib/tlsf.h"
 #include <cstddef>
 #include <string.h>
 
@@ -260,36 +261,44 @@ Allocator Arena::allocator(){
 }
 
 //// Heap allocator
-#if 0
-static inline
-void* heap_alloc(Memory_Layout layout) {
-	return rpaligned_zalloc(layout.align, layout.size);
+void* Heap_Allocator::alloc(Memory_Layout layout) {
+	return tlsf_memalign(impl, layout.align, layout.size);
 }
 
-static inline
-void heap_free(void* p, Memory_Layout) {
-	return rpfree(p);
+void Heap_Allocator::free(void* p) {
+	return tlsf_free(impl, p);
 }
 
-static inline
-void* heap_realloc(void* ptr, Memory_Layout old, Memory_Layout desired) {
+void* Heap_Allocator::realloc(void* ptr, Memory_Layout old, Memory_Layout desired) {
 	if(old.align == desired.align){
-		return rpaligned_realloc(ptr, old.align, desired.size, old.size, 0);
+		void* p = tlsf_realloc(impl, ptr, desired.size);
+		ensure((uintptr(p) & (desired.align - 1)) == 0, "invalid alignment after realloc");
+		return p;
 	}
 
-	void* data = rpaligned_zalloc(desired.align, desired.size);
+	void* data = tlsf_memalign(impl, desired.align, desired.size);
 	usize n = min(old.size, desired.size);
 	if(data){
 		mem_copy_no_overlap(data, ptr, n);
-		rpfree(ptr);
+		tlsf_free(impl, ptr);
+		if(old.size < desired.size){
+			void* dest = (void*)(uintptr(data) + old.size);
+			mem_zero(dest, desired.size - old.size);
+		}
 	}
 	return data;
 }
 
-constexpr usize heap_big_allocation_threshold = 64;
+Heap_Allocator heap_from_buffer(Slice<u8> buf){
+	ensure(tlsf_size() < buf.len(), "not enough space for tlsf metadata");
+	auto impl = tlsf_create_with_pool(buf.raw_data(), buf.len());
+	ensure(impl != NULL, "failed to create with pool");
+	return Heap_Allocator{ impl };
+}
 
 static
-uintptr heap_allocator_proc(void*, Allocator_Mode mode, void* ptr, Memory_Layout old, Memory_Layout desired) {
+uintptr heap_allocator_proc(void* impl, Allocator_Mode mode, void* ptr, Memory_Layout old, Memory_Layout desired) {
+	auto heap = (Heap_Allocator*)impl;
 	void* res = nullptr;
 
 	switch (mode) {
@@ -297,26 +306,17 @@ uintptr heap_allocator_proc(void*, Allocator_Mode mode, void* ptr, Memory_Layout
 			return Mem_Alloc | Mem_Grow | Mem_Shrink | Mem_Free;
 
 		case Mem_Alloc:
-			res = heap_alloc(desired);
+			res = heap->alloc(desired);
 			return (uintptr)res;
 
 		case Mem_Grow:
-				res = heap_realloc(ptr, old, desired);
-			return (uintptr)res;
+			return (uintptr)heap->realloc(ptr, old, desired);
 
-			case Mem_Shrink: {
-				bool stricter_alignment = desired.align > old.align;
-				bool worth_reallocating = (old.size > heap_big_allocation_threshold) && (desired.size <= old.size / 2);
-
-				if (!stricter_alignment && !worth_reallocating) {
-					return (uintptr)ptr;
-				}
-
-				return (uintptr)heap_realloc(ptr, old, desired);
-			}
+		case Mem_Shrink:
+			return (uintptr)heap->realloc(ptr, old, desired);
 
 		case Mem_Free:
-			heap_free(ptr, old);
+			heap->free(ptr);
 			return 0;
 
 		case Mem_FreeAll:
@@ -326,7 +326,9 @@ uintptr heap_allocator_proc(void*, Allocator_Mode mode, void* ptr, Memory_Layout
 	panic("invalid allocator mode");
 }
 
-Allocator heap_allocator(){
-	return { nullptr, heap_allocator_proc };
+Allocator Heap_Allocator::allocator(){
+	return {
+		.impl_ = this,
+		.proc_ = heap_allocator_proc,
+	};
 }
-#endif
