@@ -1,7 +1,10 @@
+#pragma once
 #include <source_location>
 #include <stdio.h>
 
 #define CALLER_LOC std::source_location loc = std::source_location::current()
+
+namespace test {
 
 struct Test;
 
@@ -25,12 +28,21 @@ struct Test {
 	}
 };
 
+// Shorthand for `t.test(expr, "expr")`, expects a `Test& t` in scope
+#define check(expr) t.test((expr), #expr)
+
+// Number of test groups that had at least one failure
+inline int failed_groups = 0;
+
 template<TestFunc F>
 bool test(char const* name, F&& f){
 	Test t = {.name = name};
 	f(t);
 	printf("[%s] %s ok in %d/%d\n", t.name, t.fail ? "FAIL" : "PASS", t.total - t.fail, t.total);
+	if(t.fail){ failed_groups += 1; }
 	return t.fail == 0;
+}
+
 }
 
 #undef CALLER_LOC

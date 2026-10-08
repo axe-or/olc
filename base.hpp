@@ -241,6 +241,55 @@ concept Convertible_To = (detail::is_void<From> && detail::is_void<To>) || requi
 template<typename T, typename U>
 concept Same_As = detail::same_as<T, U> && detail::same_as<U, T>;
 
+template<typename T>
+concept Eq = requires(T const& a, T const& b){
+	{ a == b } -> Convertible_To<bool>;
+};
+
+template<typename H, typename T>
+concept Hasher = requires(H h, T const& k){
+	{ h(k) } -> Convertible_To<u64>;
+};
+
+template<typename T>
+concept Unsigned_Integer = Same_As<T, unsigned char>
+	|| Same_As<T, unsigned short>
+	|| Same_As<T, unsigned int>
+	|| Same_As<T, unsigned long>
+	|| Same_As<T, unsigned long long>
+	|| Same_As<T, u8>
+	|| Same_As<T, u16>
+	|| Same_As<T, u32>
+	|| Same_As<T, u64>
+;
+
+template<typename T>
+concept Signed_Integer = Same_As<T, char>
+	|| Same_As<T, short>
+	|| Same_As<T, int>
+	|| Same_As<T, long>
+	|| Same_As<T, long long>
+	|| Same_As<T, i8>
+	|| Same_As<T, i16>
+	|| Same_As<T, i32>
+	|| Same_As<T, i64>
+;
+
+template<typename T>
+concept Integer = Signed_Integer<T> || Unsigned_Integer<T>;
+
+template<typename T>
+concept Float = Same_As<T, float> || Same_As<T, double>;
+
+// `F` can be called with `Args...` and its result converts to `R`
+template<typename F, typename R, typename ... Args>
+concept Callable = requires(F f, Args... args){
+	{ f(args...) } -> Convertible_To<R>;
+};
+
+template<typename F, typename ... Args>
+concept Predicate = Callable<F, bool, Args...>;
+
 //// Slice
 template<typename T>
 struct Slice {
@@ -270,7 +319,7 @@ public:
 	}
 
 	Slice<T> slice(usize start, usize end){
-		ensure(start <= len_ && end >= start, "invalid slice indices");
+		ensure(start <= end && end <= len_, "invalid slice indices");
 		return Slice<T>{ &data_[start], end - start };
 	}
 
@@ -368,7 +417,7 @@ public:
 	}
 
 	String slice(usize start, usize end){
-		ensure(start <= len_ && end >= start, "invalid slice indices");
+		ensure(start <= end && end <= len_, "invalid slice indices");
 		return String{ &data_[start], end - start };
 	}
 
@@ -586,23 +635,24 @@ struct Dyn_Array {
 			return false;
 		}
 
-		data = p;
+		data = (T*)p;
 		capacity = desired;
 		return true;
 	}
 
 	bool shrink_to_fit(){
-		void* p = allocator.shrink(data, layout_of<T>(length));
+		void* p = allocator.shrink(data, layout_of<T>(capacity), layout_of<T>(length));
 		if(!p){ return false; }
-		data = p;
+		data = (T*)p;
 		capacity = length;
+		return true;
 	}
 
 	// Insert value at `idx`, shifting all elements
 	bool insert(usize idx, T const& val){
 		if(idx > length){ return false; }
 		if(length == capacity){
-			usize desired = max(16, capacity * 2);
+			usize desired = max(usize(16), capacity * 2);
 			if(desired < capacity || !reserve(desired)){ return false; }
 		}
 		for(usize i = length; i > idx; i -= 1){
@@ -685,7 +735,7 @@ struct Dyn_Array {
 	}
 
 	Slice<T> slice(usize start, usize end){
-		ensure(start <= length && end >= start, "invalid slice indices");
+		ensure(start <= end && end <= length, "invalid slice indices");
 		return Slice<T>{ &data[start], end - start };
 	}
 
@@ -707,4 +757,454 @@ auto make_dynamic_array(usize initial_cap, Allocator alloc){
 	};
 	arr.reserve(initial_cap);
 	return arr;
+}
+
+//// Hash map
+
+// Default hasher overload
+template<typename T>
+struct hash;
+
+template<Integer T>
+struct hash<T>{
+	u64 operator()(T k) const {
+		return u64(k);
+	}
+};
+
+template<>
+struct hash<double> {
+	u64 operator()(double k) const {
+		u64 h = bit_cast<u64>(k);
+		h ^= h >> 30;
+		h *= UINT64_C(0xbf58476d1ce4e5b9);
+		h ^= h >> 27;
+		h *= UINT64_C(0x94d049bb133111eb);
+		h ^= h >> 31;
+		return h;
+	}
+};
+
+template<>
+struct hash<float>{
+	u64 operator()(float k) const {
+		return hash<double>{}(k);
+	}
+};
+
+
+template<>
+struct hash<String>{
+	u64 operator()(String const& k) const {
+		return k.hash();
+	}
+};
+
+template<Eq K, typename V, Hasher<K> auto hash = ::hash<K>{}>
+struct Map {
+	u64* hashes; // Important: hash == 0 indicates vacant slot. This is enforced locally with `hash_of`
+	K*   keys;
+	V*   vals;
+
+	usize length;
+	usize capacity;
+	Allocator allocator;
+
+	u64 hash_of(K const& key){
+		u64 h = hash(key);
+		return h == 0 ? 1 : h;
+	}
+
+	// Finds internal index for a key with its precomputed hash `h`
+	Pair<usize, bool> find_with_hash(K const& key, u64 h){
+		if(capacity == 0){ return {0, false}; }
+		usize mask = capacity - 1;
+		usize home = h & mask;
+
+		for(usize probe = 0; probe < length; probe += 1){
+			usize pos = (home + probe) & mask;
+			if(hashes[pos] == 0){
+				break;
+			}
+
+			usize dist_pos = dist_from_home(pos);
+			if(dist_pos < probe){
+				break;
+			}
+
+			if(keys[pos] == key){
+				return {pos, true};
+			}
+		}
+
+		return {0, false};
+	}
+
+	Pair<usize, bool> find(K const& key){
+		u64 h = hash_of(key);
+		return find_with_hash(key, h);
+	}
+
+	usize dist_from_home(usize pos){
+		usize mask = capacity - 1;
+		return (pos - (hashes[pos] & mask)) & mask;
+	}
+
+	// Write the provided values into `pos`, writing back to parameters the previous values. This is
+	// used to steal from the rich.
+	void swap_with_slot(usize pos, u64* h, K* key, V* val){
+		swap_ptr(&hashes[pos], h);
+		swap_ptr(&keys[pos], key);
+		swap_ptr(&vals[pos], val);
+	}
+
+	// Required Layout a single block holding hashes, keys and vals (in that order)
+	static constexpr
+	Memory_Layout block_layout(usize cap){
+		constexpr usize align = max(max(alignof(u64), alignof(K)), alignof(V));
+		// Hashes sit at the (max aligned) start, keys and vals may need up to align-1 bytes of padding each
+		usize size = cap * sizeof(u64)
+			+ cap * sizeof(K) + alignof(K) - 1
+			+ cap * sizeof(V) + alignof(V) - 1;
+		return {size, align};
+	}
+
+	// Grow to at least `new_cap` slots (rounded up to a power of 2), rehashing all entries
+	void reserve(usize new_cap){
+		if(new_cap <= capacity){ return; }
+
+		usize cap = 1;
+		while(cap < new_cap){ cap <<= 1; }
+
+		Memory_Layout layout = block_layout(cap);
+		void* block = allocator.alloc(layout);
+		ensure(block != nullptr, "failed to allocate map storage");
+
+		// Throwaway arena just to carve the block with correct alignment
+		// IMPORTANT: The allocation order MUST be EXACTLY this one.
+		Arena arena = arena_from_buffer(block, layout.size);
+		u64* new_hashes = (u64*)arena.alloc(cap * sizeof(u64), alignof(u64));
+		K*   new_keys   = (K*)arena.alloc(cap * sizeof(K), alignof(K));
+		V*   new_vals   = (V*)arena.alloc(cap * sizeof(V), alignof(V));
+
+		ensure(new_hashes == block && new_keys != nullptr && new_vals != nullptr, "bad map block layout");
+
+		u64*  old_hashes = hashes;
+		K*    old_keys   = keys;
+		V*    old_vals   = vals;
+		usize old_cap    = capacity;
+
+		hashes   = new_hashes;
+		keys     = new_keys;
+		vals     = new_vals;
+		capacity = cap;
+		length   = 0; // insert_with_hash() counts entries back up
+
+		for(usize i = 0; i < old_cap; i += 1){
+			if(old_hashes[i] != 0){
+				insert_with_hash(old_hashes[i], old_keys[i], old_vals[i]);
+			}
+		}
+
+		// Pointer to hashes coincides with start of block, as asserted previously
+		if(old_hashes != nullptr){
+			allocator.free(old_hashes, block_layout(old_cap));
+		}
+	}
+
+	void insert(K const& key, V const& val){
+		u64 h = hash_of(key);
+		insert_with_hash(h, key, val);
+	}
+
+	void insert_with_hash(u64 h, K key, V val){
+		if(length + 1 > (capacity * 7) / 8){
+			reserve(max(capacity * 2, usize(8)));
+		}
+
+		usize mask = capacity - 1;
+		usize home = h & mask;
+
+		// Distance of the current carry if it were to be placed in the current slot
+		usize carry_dist = 0;
+
+		for(usize probe = 0; probe < capacity; probe += 1){
+			usize pos = (home + probe) & mask;
+
+			if(hashes[pos] == 0){
+				keys[pos] = key;
+				vals[pos] = val;
+				hashes[pos] = h;
+				length += 1;
+				return;
+			}
+
+			if(hashes[pos] == h && keys[pos] == key){
+				vals[pos] = val;
+				return;
+			}
+
+			usize dist_pos = dist_from_home(pos);
+			if(dist_pos < carry_dist){
+				swap_with_slot(pos, &h, &key, &val); // Steal richer slot and carry it forward
+				carry_dist = dist_pos;
+			}
+
+			carry_dist += 1;
+		}
+
+		panic("map should not be full");
+	}
+
+	void remove(K key){
+		u64 h = hash_of(key);
+		remove_with_hash(key, h);
+	}
+
+	void remove_with_hash(K const& key, u64 h){
+		if(length == 0){ return; }
+
+		auto [removed_position, found] = find_with_hash(key, h);
+		if(!found){ return; }
+
+		usize mask = capacity - 1;
+		usize hole_pos = removed_position;
+
+		for(;;){
+			usize next_position = (hole_pos + 1) & mask;
+
+			bool next_is_empty   = hashes[next_position] == 0;
+			bool next_is_at_home = !next_is_empty && dist_from_home(next_position) == 0;
+			if(next_is_empty || next_is_at_home){
+				break;
+			}
+
+			hashes[hole_pos] = hashes[next_position];
+			keys[hole_pos]   = keys[next_position];
+			vals[hole_pos]   = vals[next_position];
+
+			hole_pos = next_position;
+		}
+
+		// Only the hash marks occupancy; stale key/val bytes are fine for trivial types
+		hashes[hole_pos] = 0;
+		length -= 1;
+	}
+
+	// Completely reset, freeing all memory
+	auto reset(){
+		allocator.free(hashes, block_layout(capacity));
+
+		capacity = 0;
+		length = 0;
+		hashes = nullptr;
+		keys = nullptr;
+		vals = nullptr;
+
+		return this;
+	}
+
+	bool contains_key(K key){
+		auto [_, found] = find(key);
+		return found;
+	}
+
+	Pair<V, bool> get(K key){
+		u64 h = hash_of(key);
+		auto [idx, found] = find_with_hash(key, h);
+		if(!found){
+			return {{}, found};
+		}
+		return {vals[idx], true};
+	}
+
+	void destroy(){
+		reset();
+	}
+};
+
+template<Eq K, typename V>
+auto make_map(usize capacity, Allocator a){
+	auto m = Map<K, V>{
+		.hashes = nullptr,
+		.keys = nullptr,
+		.vals = nullptr,
+		.length = 0,
+		.capacity = 0,
+		.allocator = a,
+	};
+
+	m.reserve(capacity);
+	return m;
+}
+
+//// Option
+
+// Tag type for constructing empty options, `Option<T> x = None;`
+struct None_Type {};
+inline constexpr None_Type None{};
+
+// Optional value, the zero value is None (and the payload is zeroed too).
+template<typename T>
+struct Option {
+private:
+	union { T data_; };
+	bool has_value_;
+
+public:
+	constexpr Option() : data_{}, has_value_{false} {}
+	constexpr Option(None_Type) : data_{}, has_value_{false} {}
+	constexpr Option(T const& value) : data_{value}, has_value_{true} {}
+
+
+	template<Predicate<T> F>
+	constexpr bool is_some_and(F&& pred) const {
+		return has_value_ && bool(pred(data_));
+	}
+
+	template<Predicate<T> F>
+	constexpr bool is_none_or(F&& pred) const {
+		return !has_value_ || bool(pred(data_));
+	}
+
+	T unwrap(caller_location) const {
+		if(!has_value_){ panic("called unwrap() on a None value", caller_loc); }
+		return data_;
+	}
+
+	T expect(cstring msg, caller_location) const {
+		if(!has_value_){ panic(msg, caller_loc); }
+		return data_;
+	}
+
+	// No check whatsoever, if None this returns whatever is in the payload (the zero value by default)
+	constexpr T unwrap_unchecked() const { return data_; }
+
+	constexpr T unwrap_or(T const& fallback) const {
+		return has_value_ ? data_ : fallback;
+	}
+
+	template<Callable<T> F>
+	constexpr T unwrap_or_else(F&& f) const {
+		return has_value_ ? data_ : T{f()};
+	}
+
+	constexpr T unwrap_or_default() const {
+		return has_value_ ? data_ : T{};
+	}
+
+	//// Combinators
+	template<typename F>
+	constexpr auto map(F&& f) const {
+		using U = Remove_Reference<decltype(f(data_))>;
+		if(has_value_){ return Option<U>(f(data_)); }
+		return Option<U>(None);
+	}
+
+	template<typename U, Callable<U, T> F>
+	constexpr U map_or(U const& fallback, F&& f) const {
+		return has_value_ ? U(f(data_)) : fallback;
+	}
+
+	template<typename D, typename F>
+	constexpr auto map_or_else(D&& fallback, F&& f) const -> decltype(f(data_)) {
+		return has_value_ ? f(data_) : fallback();
+	}
+
+	// `f` must return an Option<U>
+	template<typename F>
+	constexpr auto and_then(F&& f) const {
+		using R = Remove_Reference<decltype(f(data_))>;
+		if(has_value_){ return f(data_); }
+		return R(None);
+	}
+
+	template<typename U>
+	constexpr Option<U> and_(Option<U> const& other) const {
+		if(has_value_){ return other; }
+		return None;
+	}
+
+	// Named `or_` because `or` is an alternative token in C++
+	constexpr Option or_(Option const& other) const {
+		return has_value_ ? *this : other;
+	}
+
+	template<Callable<Option> F>
+	constexpr Option or_else(F&& f) const {
+		return has_value_ ? *this : Option(f());
+	}
+
+	constexpr Option xor_(Option const& other) const {
+		if(has_value_ && !other.has_value_){ return *this; }
+		if(!has_value_ && other.has_value_){ return other; }
+		return None;
+	}
+
+	template<Predicate<T> F>
+	constexpr Option filter(F&& pred) const {
+		if(has_value_ && bool(pred(data_))){ return *this; }
+		return None;
+	}
+
+	//// Mutation
+	// Takes the value out, leaving None (with a zeroed payload) in its place
+	constexpr Option take(){
+		Option out = *this;
+		*this = None;
+		return out;
+	}
+
+	template<Predicate<T> F>
+	constexpr Option take_if(F&& pred){
+		if(has_value_ && bool(pred(data_))){ return take(); }
+		return None;
+	}
+
+	// Puts `value` in, returning the previous contents
+	constexpr Option replace(T const& value){
+		Option out = *this;
+		*this = Option(value);
+		return out;
+	}
+
+	constexpr T& insert(T const& value){
+		*this = Option(value);
+		return data_;
+	}
+
+	constexpr T& get_or_insert(T const& value){
+		if(!has_value_){ *this = Option(value); }
+		return data_;
+	}
+
+	template<Callable<T> F>
+	constexpr T& get_or_insert_with(F&& f){
+		if(!has_value_){ *this = Option(T(f())); }
+		return data_;
+	}
+
+	constexpr T& get_or_insert_default(){
+		if(!has_value_){ *this = Option(T{}); }
+		return data_;
+	}
+
+	attribute_force_inline constexpr bool is_some() const { return has_value_; }
+	attribute_force_inline constexpr bool is_none() const { return !has_value_; }
+	attribute_force_inline constexpr auto as_ptr() { return has_value_ ? &data_ : nullptr; }
+	attribute_force_inline constexpr auto as_ptr() const { return has_value_ ? &data_ : nullptr; }
+
+	constexpr bool operator==(Option const& other) const requires Eq<T> {
+		if(has_value_ != other.has_value_){
+			return false;
+		}
+		return !has_value_ || bool(data_ == other.data_);
+	}
+
+	constexpr bool operator==(None_Type) const { return !has_value_; }
+};
+
+template<typename T>
+constexpr Option<T> Some(T const& value){
+	return Option<T>(value);
 }

@@ -19,6 +19,14 @@ tlsf.o: lib/tlsf.c lib/tlsf.h
 olc.exe: $(SRC) tlsf.o
 	$(CXX) $(CXXFLAGS) $(WFLAGS) -o olc.exe main.cpp tlsf.o
 
+TEST_SRC := $(wildcard tests/*.cpp tests/*.hpp)
+
+tests.exe: $(SRC) $(TEST_SRC) tlsf.o
+	$(CXX) $(CXXFLAGS) $(WFLAGS) -o tests.exe tests/main.cpp tlsf.o
+
+test: tests.exe
+	./tests.exe
+
 CLEAN_GLOB := *.o *.exe *.pdb *.exp *.ilk
 
 clean:

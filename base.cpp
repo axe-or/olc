@@ -262,7 +262,9 @@ Allocator Arena::allocator(){
 
 //// Heap allocator
 void* Heap_Allocator::alloc(Memory_Layout layout) {
-	return tlsf_memalign(impl, layout.align, layout.size);
+	void* p = tlsf_memalign(impl, layout.align, layout.size);
+	if(p){ mem_zero(p, layout.size); }
+	return p;
 }
 
 void Heap_Allocator::free(void* p) {
@@ -270,9 +272,13 @@ void Heap_Allocator::free(void* p) {
 }
 
 void* Heap_Allocator::realloc(void* ptr, Memory_Layout old, Memory_Layout desired) {
-	if(old.align == desired.align){
+	// tlsf_realloc() only guarantees TLSF's base alignment if it has to move the block
+	if(old.align == desired.align && desired.align <= sizeof(void*)){
 		void* p = tlsf_realloc(impl, ptr, desired.size);
 		ensure((uintptr(p) & (desired.align - 1)) == 0, "invalid alignment after realloc");
+		if(p && old.size < desired.size){
+			mem_zero((u8*)p + old.size, desired.size - old.size);
+		}
 		return p;
 	}
 
