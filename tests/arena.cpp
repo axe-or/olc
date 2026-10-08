@@ -6,8 +6,9 @@ static_assert(__is_trivially_copyable(Arena) && __is_trivially_constructible(Are
 
 namespace test {
 
-void arena_tests(){
-	test("arena: alloc, resize, realloc", [](Test& t){
+bool arena_tests(){
+	bool ok = true;
+	ok &= test("arena: alloc, resize, realloc", [](Test& t){
 		alignas(64) u8 storage[513];
 		mem_set(storage, 0xff, sizeof(storage));
 		Arena a = arena_from_buffer(storage + 1, 512);
@@ -61,7 +62,7 @@ void arena_tests(){
 		check(a.offset == offset && p[0] == 42);
 	});
 
-	test("arena: reset", [](Test& t){
+	ok &= test("arena: reset", [](Test& t){
 		alignas(64) u8 storage[513];
 		mem_set(storage, 0xff, sizeof(storage));
 		Arena a = arena_from_buffer(storage + 1, 512);
@@ -85,7 +86,7 @@ void arena_tests(){
 		check(a.alloc(512, 1) == storage + 1);
 	});
 
-	test("arena: placement new", [](Test& t){
+	ok &= test("arena: placement new", [](Test& t){
 		alignas(64) u8 storage[512];
 		Arena a = arena_from_buffer(storage, sizeof(storage));
 
@@ -106,7 +107,7 @@ void arena_tests(){
 		check(nums.len() == 4 && nums[0] == 7 && nums[3] == 7);
 	});
 
-	test("arena: allocator interface", [](Test& t){
+	ok &= test("arena: allocator interface", [](Test& t){
 		alignas(64) u8 storage[513];
 		Arena a = arena_from_buffer(storage + 1, 512);
 
@@ -153,13 +154,14 @@ void arena_tests(){
 		check(allocator.alloc({1, 1}) == nullptr);
 	});
 
-	test("arena: empty", [](Test& t){
+	ok &= test("arena: empty", [](Test& t){
 		Arena empty = arena_from_buffer(nullptr, 0);
 		check(empty.alloc(1, 1) == nullptr && !empty.owns(nullptr));
 		check(!empty.resize(nullptr, 1));
 		empty.reset();
 		check(empty.offset == 0);
 	});
+	return ok;
 }
 
 }

@@ -11,17 +11,18 @@
 #include "option.cpp"
 
 int main(){
-	test::arena_tests();
-	test::heap_tests();
-	test::slice_tests();
-	test::string_tests();
-	test::rune_tests();
-	test::dyn_array_tests();
-	test::map_tests();
-	test::option_tests();
+	bool ok = true;
+	ok &= test::arena_tests();
+	ok &= test::heap_tests();
+	ok &= test::slice_tests();
+	ok &= test::string_tests();
+	ok &= test::rune_tests();
+	ok &= test::dyn_array_tests();
+	ok &= test::map_tests();
+	ok &= test::option_tests();
 
-	if(test::failed_groups != 0){
-		printf("%d test group(s) failed\n", test::failed_groups);
+	if(!ok){
+		printf("some tests failed\n");
 		return 1;
 	}
 	return 0;

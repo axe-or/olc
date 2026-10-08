@@ -3,8 +3,9 @@
 
 namespace test {
 
-void slice_tests(){
-	test("slice: basics", [](Test& t){
+bool slice_tests(){
+	bool ok = true;
+	ok &= test("slice: basics", [](Test& t){
 		Slice<i32> empty;
 		check(empty.len() == 0 && empty.raw_data() == nullptr);
 
@@ -20,7 +21,7 @@ void slice_tests(){
 		check(cs[2] == 33);
 	});
 
-	test("slice: take, skip, slice", [](Test& t){
+	ok &= test("slice: take, skip, slice", [](Test& t){
 		i32 nums[] = {10, 20, 30, 40, 50};
 		Slice<i32> s{nums, 5};
 
@@ -43,7 +44,7 @@ void slice_tests(){
 		check(nums[1] == 21);
 	});
 
-	test("slice: copy", [](Test& t){
+	ok &= test("slice: copy", [](Test& t){
 		i32 src_data[] = {1, 2, 3, 4};
 		i32 dst_data[] = {0, 0, 0, 0, 0, 0};
 
@@ -58,6 +59,7 @@ void slice_tests(){
 		copied = copy(Slice<i32>{}, Slice<i32>{src_data, 4});
 		check(copied.len() == 0);
 	});
+	return ok;
 }
 
 }

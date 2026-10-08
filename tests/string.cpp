@@ -17,8 +17,9 @@ static_assert(const_hash("hello") != const_hash("hellp"));
 static_assert(cstring_len("") == 0 && cstring_len("abc") == 3);
 static_assert(String("abc") == String("abc") && String("abc") != String("abd"));
 
-void string_tests(){
-	test("string: construction and equality", [](Test& t){
+bool string_tests(){
+	bool ok = true;
+	ok &= test("string: construction and equality", [](Test& t){
 		String empty;
 		check(empty.len() == 0 && empty.raw_data() == nullptr);
 
@@ -36,7 +37,7 @@ void string_tests(){
 		check(String("") == empty);
 	});
 
-	test("string: take, skip, slice", [](Test& t){
+	ok &= test("string: take, skip, slice", [](Test& t){
 		String s = "hello world";
 		check(s.take(5) == String("hello"));
 		check(s.skip(6) == String("world"));
@@ -45,7 +46,7 @@ void string_tests(){
 		check(s.take(11) == s && s.skip(11).len() == 0);
 	});
 
-	test("string: hash", [](Test& t){
+	ok &= test("string: hash", [](Test& t){
 		String a = "some key";
 		String b{"some key and more", 8};
 		check(a.hash() == b.hash());
@@ -55,6 +56,7 @@ void string_tests(){
 		// Exercises both the 8 byte block loop and the tail
 		check(String("0123456789abcdef!").hash() == const_hash("0123456789abcdef!"));
 	});
+	return ok;
 }
 
 }

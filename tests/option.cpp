@@ -11,8 +11,9 @@ static Option<i32> half(i32 x){
 static_assert(Option<i32>{}.is_none());
 static_assert(Some(3).is_some() && Some(3).unwrap_or(0) == 3);
 
-void option_tests(){
-	test("option: construction and queries", [](Test& t){
+bool option_tests(){
+	bool ok = true;
+	ok &= test("option: construction and queries", [](Test& t){
 		Option<i32> zero{};
 		Option<i32> none = None;
 		Option<i32> some = Some(10);
@@ -36,7 +37,7 @@ void option_tests(){
 		check(some.unwrap() == 11);
 	});
 
-	test("option: extraction", [](Test& t){
+	ok &= test("option: extraction", [](Test& t){
 		Option<i32> none{};
 		Option<i32> some = Some(4);
 
@@ -49,7 +50,7 @@ void option_tests(){
 		check(some.unwrap_or_default() == 4 && none.unwrap_or_default() == 0);
 	});
 
-	test("option: combinators", [](Test& t){
+	ok &= test("option: combinators", [](Test& t){
 		Option<i32> none{};
 		Option<i32> some = Some(10);
 
@@ -86,7 +87,7 @@ void option_tests(){
 		check(none.filter(big).is_none());
 	});
 
-	test("option: mutation", [](Test& t){
+	ok &= test("option: mutation", [](Test& t){
 		Option<i32> o = Some(1);
 		Option<i32> taken = o.take();
 		check(taken == Some(1) && o.is_none() && o.unwrap_unchecked() == 0);
@@ -114,7 +115,7 @@ void option_tests(){
 		check(d.get_or_insert_default() == 0 && d.is_some());
 	});
 
-	test("option: equality", [](Test& t){
+	ok &= test("option: equality", [](Test& t){
 		check(Some(1) == Some(1));
 		check(!(Some(1) == Some(2)));
 		check(!(Some(1) == Option<i32>{}));
@@ -122,6 +123,7 @@ void option_tests(){
 		check(Option<i32>{} == None && !(Some(0) == None));
 		check(Some(String("abc")) == Some(String("abc")));
 	});
+	return ok;
 }
 
 }

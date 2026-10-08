@@ -13,8 +13,9 @@ static bool dyn_array_equals(Dyn_Array<i32> const& arr, Slice<i32> expected){
 
 #define EXPECT_ITEMS(arr, ...) [&]{ i32 items_[] = {__VA_ARGS__}; return dyn_array_equals((arr), Slice<i32>{items_, sizeof(items_) / sizeof(i32)}); }()
 
-void dyn_array_tests(){
-	test("dyn_array: append and pop", [](Test& t){
+bool dyn_array_tests(){
+	bool ok = true;
+	ok &= test("dyn_array: append and pop", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer(storage, sizeof(storage));
 		auto arr = make_dynamic_array<i32>(4, arena.allocator());
@@ -33,7 +34,7 @@ void dyn_array_tests(){
 		check(!arr.pop());
 	});
 
-	test("dyn_array: insert and remove", [](Test& t){
+	ok &= test("dyn_array: insert and remove", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer(storage, sizeof(storage));
 		auto arr = make_dynamic_array<i32>(0, arena.allocator());
@@ -52,7 +53,7 @@ void dyn_array_tests(){
 		check(!arr.remove(2));
 	});
 
-	test("dyn_array: swap insert and remove", [](Test& t){
+	ok &= test("dyn_array: swap insert and remove", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer(storage, sizeof(storage));
 		auto arr = make_dynamic_array<i32>(0, arena.allocator());
@@ -69,7 +70,7 @@ void dyn_array_tests(){
 		check(!arr.remove_swap(3));
 	});
 
-	test("dyn_array: views, reserve, shrink", [](Test& t){
+	ok &= test("dyn_array: views, reserve, shrink", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer(storage, sizeof(storage));
 		auto arr = make_dynamic_array<i32>(2, arena.allocator());
@@ -89,7 +90,7 @@ void dyn_array_tests(){
 		arr.destroy();
 	});
 
-	test("dyn_array: heap backed", [](Test& t){
+	ok &= test("dyn_array: heap backed", [](Test& t){
 		alignas(16) static u8 storage[256 * 1024];
 		Heap_Allocator heap = heap_from_buffer({storage, sizeof(storage)});
 		auto arr = make_dynamic_array<u64>(0, heap.allocator());
@@ -97,6 +98,7 @@ void dyn_array_tests(){
 		check(arr.length == 1000 && arr[999] == 999 * 999 && arr[10] == 100);
 		arr.destroy();
 	});
+	return ok;
 }
 
 #undef EXPECT_ITEMS

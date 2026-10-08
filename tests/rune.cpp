@@ -17,8 +17,9 @@ static bool decodes_to(u8 const* bytes, u32 len, rune r, i32 size){
 	return d.codepoint == r && d.size == size;
 }
 
-void rune_tests(){
-	test("rune: encode", [](Test& t){
+bool rune_tests(){
+	bool ok = true;
+	ok &= test("rune: encode", [](Test& t){
 		u8 const ascii[] = {0x41};
 		u8 const two[]   = {0xc3, 0xa9};
 		u8 const three[] = {0xe2, 0x82, 0xac};
@@ -46,7 +47,7 @@ void rune_tests(){
 		check(encodes_to(RUNE_ERROR, error, 3));
 	});
 
-	test("rune: decode", [](Test& t){
+	ok &= test("rune: decode", [](Test& t){
 		u8 const ascii[] = {'z', 'q'};
 		u8 const two[]   = {0xc3, 0xa9};
 		u8 const three[] = {0xe2, 0x82, 0xac};
@@ -61,7 +62,7 @@ void rune_tests(){
 		check(nothing.codepoint == 0 && nothing.size == 0);
 	});
 
-	test("rune: decode invalid", [](Test& t){
+	ok &= test("rune: decode invalid", [](Test& t){
 		u8 const continuation[] = {0x80};
 		u8 const overlong2[]    = {0xc0, 0x80};
 		u8 const overlong3[]    = {0xe0, 0x80, 0x80};
@@ -84,7 +85,7 @@ void rune_tests(){
 		check(decodes_to(four, 1, RUNE_ERROR, 1));
 	});
 
-	test("rune: round trip every codepoint", [](Test& t){
+	ok &= test("rune: round trip every codepoint", [](Test& t){
 		usize failures = 0;
 		for(rune r = 0; r <= 0x10ffff; r++){
 			if(r >= 0xd800 && r <= 0xdfff){ continue; }
@@ -94,6 +95,7 @@ void rune_tests(){
 		}
 		check(failures == 0);
 	});
+	return ok;
 }
 
 }

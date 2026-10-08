@@ -10,8 +10,9 @@ static Heap_Allocator make_test_heap(){
 	return heap_from_buffer({heap_buffer, sizeof(heap_buffer)});
 }
 
-void heap_tests(){
-	test("heap: alloc and free", [](Test& t){
+bool heap_tests(){
+	bool ok = true;
+	ok &= test("heap: alloc and free", [](Test& t){
 		Heap_Allocator heap = make_test_heap();
 
 		u8* a = (u8*)heap.alloc({100, 8});
@@ -40,7 +41,7 @@ void heap_tests(){
 		check(heap.alloc({1024 * 1024, 16}) == nullptr);
 	});
 
-	test("heap: realloc", [](Test& t){
+	ok &= test("heap: realloc", [](Test& t){
 		Heap_Allocator heap = make_test_heap();
 
 		u8* p = (u8*)heap.alloc({16, 8});
@@ -74,7 +75,7 @@ void heap_tests(){
 		heap.free(shrunk);
 	});
 
-	test("heap: allocator interface", [](Test& t){
+	ok &= test("heap: allocator interface", [](Test& t){
 		Heap_Allocator heap = make_test_heap();
 		Allocator allocator = heap.allocator();
 
@@ -92,6 +93,7 @@ void heap_tests(){
 
 		allocator.free(nums, layout_of<u32>(2));
 	});
+	return ok;
 }
 
 }

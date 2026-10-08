@@ -12,8 +12,9 @@ static Heap_Allocator make_map_heap(){
 // Every key lands on the same home slot
 inline constexpr auto colliding_hash = [](i32 const&){ return u64(0); };
 
-void map_tests(){
-	test("map: insert, get, contains", [](Test& t){
+bool map_tests(){
+	bool ok = true;
+	ok &= test("map: insert, get, contains", [](Test& t){
 		Heap_Allocator heap = make_map_heap();
 		auto m = make_map<i32, i32>(0, heap.allocator());
 		check(m.length == 0 && m.capacity == 0);
@@ -38,7 +39,7 @@ void map_tests(){
 		m.destroy();
 	});
 
-	test("map: growth", [](Test& t){
+	ok &= test("map: growth", [](Test& t){
 		Heap_Allocator heap = make_map_heap();
 		auto m = make_map<i32, i32>(8, heap.allocator());
 		check(m.capacity == 8);
@@ -58,7 +59,7 @@ void map_tests(){
 		m.destroy();
 	});
 
-	test("map: remove", [](Test& t){
+	ok &= test("map: remove", [](Test& t){
 		Heap_Allocator heap = make_map_heap();
 		auto m = make_map<i32, i32>(0, heap.allocator());
 		for(i32 i = 0; i < 500; i++){ m.insert(i, -i); }
@@ -67,12 +68,12 @@ void map_tests(){
 		for(i32 i = 0; i < 500; i += 2){ m.remove(i); }
 		check(m.length == 250);
 
-		bool ok = true;
+		bool matches = true;
 		for(i32 i = 0; i < 500; i++){
 			auto [v, found] = m.get(i);
-			ok = ok && (i % 2 == 0 ? !found : (found && v == -i));
+			matches = matches && (i % 2 == 0 ? !found : (found && v == -i));
 		}
-		check(ok);
+		check(matches);
 
 		m.remove(12345);
 		check(m.length == 250);
@@ -84,7 +85,7 @@ void map_tests(){
 		m.destroy();
 	});
 
-	test("map: colliding hashes", [](Test& t){
+	ok &= test("map: colliding hashes", [](Test& t){
 		Heap_Allocator heap = make_map_heap();
 		Map<i32, i32, colliding_hash> m = {
 			.hashes = nullptr, .keys = nullptr, .vals = nullptr,
@@ -94,25 +95,25 @@ void map_tests(){
 		for(i32 i = 0; i < 50; i++){ m.insert(i, i * 2); }
 		check(m.length == 50);
 
-		bool ok = true;
-		for(i32 i = 0; i < 50; i++){ ok = ok && m.get(i).b && m.get(i).a == i * 2; }
-		check(ok);
+		bool matches = true;
+		for(i32 i = 0; i < 50; i++){ matches = matches && m.get(i).b && m.get(i).a == i * 2; }
+		check(matches);
 
 		// Removing from the middle of one long cluster
 		m.remove(0);
 		m.remove(25);
 		m.remove(49);
-		ok = m.length == 47;
+		matches = m.length == 47;
 		for(i32 i = 0; i < 50; i++){
 			bool removed = i == 0 || i == 25 || i == 49;
-			ok = ok && (removed ? !m.contains_key(i) : m.get(i).a == i * 2);
+			matches = matches && (removed ? !m.contains_key(i) : m.get(i).a == i * 2);
 		}
-		check(ok);
+		check(matches);
 
 		m.destroy();
 	});
 
-	test("map: string keys", [](Test& t){
+	ok &= test("map: string keys", [](Test& t){
 		Heap_Allocator heap = make_map_heap();
 		auto m = make_map<String, i32>(0, heap.allocator());
 
@@ -131,7 +132,7 @@ void map_tests(){
 		m.destroy();
 	});
 
-	test("map: reset", [](Test& t){
+	ok &= test("map: reset", [](Test& t){
 		Heap_Allocator heap = make_map_heap();
 		auto m = make_map<i32, i32>(0, heap.allocator());
 		for(i32 i = 0; i < 20; i++){ m.insert(i, i); }
@@ -144,6 +145,7 @@ void map_tests(){
 		check(m.get(3).a == 33);
 		m.destroy();
 	});
+	return ok;
 }
 
 }
