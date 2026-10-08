@@ -1,6 +1,3 @@
-#include "../base.hpp"
-#include "testing.hpp"
-
 #include "arena.cpp"
 #include "heap.cpp"
 #include "slice.cpp"
