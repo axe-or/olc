@@ -2,7 +2,6 @@
 #include "../base.hpp"
 
 namespace test {
-
 static Option<i32> half(i32 x){
 	if(x % 2 != 0){ return None; }
 	return Some(x / 2);
