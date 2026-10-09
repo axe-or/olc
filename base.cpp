@@ -163,12 +163,11 @@ Rune_Encoded rune_encode(rune r){
 }
 
 //// Arena
-
-Arena arena_from_buffer(void* buffer, usize size){
-	ensure(buffer != nullptr || size == 0, "invalid arena buffer");
+Arena arena_from_buffer(Slice<u8> buffer){
+	ensure(buffer.raw_data() != nullptr || buffer.len() == 0, "invalid arena buffer");
 	return Arena{
-		.data = (u8*)buffer,
-		.capacity = size,
+		.data = buffer.raw_data(),
+		.capacity = buffer.len(),
 		.offset = 0,
 		.last_allocation = nullptr,
 		.last_allocation_size = 0,

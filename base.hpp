@@ -598,7 +598,7 @@ struct Arena {
 	}
 };
 
-Arena arena_from_buffer(void* buffer, usize size);
+Arena arena_from_buffer(Slice<u8> buffer);
 
 //// Heap allocator
 struct Heap_Allocator {
