@@ -2,27 +2,7 @@
 
 extern "C" int printf(char const*, ...);
 
-template<Integer I>
-struct Non_Zero {
-private:
-	I value_;
-
-	Non_Zero(I v) : value_{v}{}
-
-public:
-	constexpr I get() const { return value_; }
-
-	constexpr
-	static Option<Non_Zero<I>> from(I v){
-		if(v == 0){
-			return {};
-		}
-		return res;
-	}
-};
-
 void entrypoint(){
-	auto n = Non_Zero<i32>::from(0);
 }
 
 void init(){

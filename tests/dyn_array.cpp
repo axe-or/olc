@@ -17,7 +17,7 @@ bool dyn_array_tests(){
 	bool ok = true;
 	ok &= test("dyn_array: append and pop", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
-		Arena arena = arena_from_buffer(storage, sizeof(storage));
+		Arena arena = arena_from_buffer({storage, sizeof(storage)});
 		auto arr = make_dynamic_array<i32>(4, arena.allocator());
 		check(arr.length == 0 && arr.capacity == 4 && arr.data != nullptr);
 
@@ -36,7 +36,7 @@ bool dyn_array_tests(){
 
 	ok &= test("dyn_array: insert and remove", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
-		Arena arena = arena_from_buffer(storage, sizeof(storage));
+		Arena arena = arena_from_buffer({storage, sizeof(storage)});
 		auto arr = make_dynamic_array<i32>(0, arena.allocator());
 
 		check(arr.insert(0, 2));
@@ -55,7 +55,7 @@ bool dyn_array_tests(){
 
 	ok &= test("dyn_array: swap insert and remove", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
-		Arena arena = arena_from_buffer(storage, sizeof(storage));
+		Arena arena = arena_from_buffer({storage, sizeof(storage)});
 		auto arr = make_dynamic_array<i32>(0, arena.allocator());
 
 		for(i32 i = 0; i < 4; i++){ arr.append(i * 10); }
@@ -72,7 +72,7 @@ bool dyn_array_tests(){
 
 	ok &= test("dyn_array: views, reserve, shrink", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
-		Arena arena = arena_from_buffer(storage, sizeof(storage));
+		Arena arena = arena_from_buffer({storage, sizeof(storage)});
 		auto arr = make_dynamic_array<i32>(2, arena.allocator());
 		for(i32 i = 0; i < 6; i++){ arr.append(i); }
 

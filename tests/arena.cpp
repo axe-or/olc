@@ -11,7 +11,7 @@ bool arena_tests(){
 	ok &= test("arena: alloc, resize, realloc", [](Test& t){
 		alignas(64) u8 storage[513];
 		mem_set(storage, 0xff, sizeof(storage));
-		Arena a = arena_from_buffer(storage + 1, 512);
+		Arena a = arena_from_buffer({storage + 1, 512});
 
 		check(a.owns(storage + 1));
 		check(!a.owns(storage));
@@ -65,7 +65,7 @@ bool arena_tests(){
 	ok &= test("arena: reset", [](Test& t){
 		alignas(64) u8 storage[513];
 		mem_set(storage, 0xff, sizeof(storage));
-		Arena a = arena_from_buffer(storage + 1, 512);
+		Arena a = arena_from_buffer({storage + 1, 512});
 		u8* p = (u8*)a.alloc(32, 1);
 
 		a.reset();
@@ -88,7 +88,7 @@ bool arena_tests(){
 
 	ok &= test("arena: placement new", [](Test& t){
 		alignas(64) u8 storage[512];
-		Arena a = arena_from_buffer(storage, sizeof(storage));
+		Arena a = arena_from_buffer({storage, sizeof(storage)});
 
 		struct Point { i32 x, y; };
 		Point* points = (Point*)a.alloc(sizeof(Point) * 8, alignof(Point));
@@ -109,7 +109,7 @@ bool arena_tests(){
 
 	ok &= test("arena: allocator interface", [](Test& t){
 		alignas(64) u8 storage[513];
-		Arena a = arena_from_buffer(storage + 1, 512);
+		Arena a = arena_from_buffer({storage + 1, 512});
 
 		Allocator allocator = a.allocator();
 		check(allocator.query() == (Mem_Alloc | Mem_Grow | Mem_Shrink | Mem_FreeAll));
@@ -155,7 +155,7 @@ bool arena_tests(){
 	});
 
 	ok &= test("arena: empty", [](Test& t){
-		Arena empty = arena_from_buffer(nullptr, 0);
+		Arena empty = arena_from_buffer({nullptr, 0});
 		check(empty.alloc(1, 1) == nullptr && !empty.owns(nullptr));
 		check(!empty.resize(nullptr, 1));
 		empty.reset();

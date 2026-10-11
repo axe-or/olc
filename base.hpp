@@ -474,9 +474,9 @@ Rune_Decoded rune_decode(u8 const* buf, u32 buflen);
 //// Memory
 
 extern "C" {
-	void* memmove(void*, void const*, size_t);
-	void* memcpy(void*, void const*, size_t);
-	void* memset(void*, int, size_t);
+	void* memmove(void*, void const*, size_t) noexcept;
+	void* memcpy(void*, void const*, size_t) noexcept;
+	void* memset(void*, int, size_t) noexcept;
 }
 
 static inline attribute_force_inline
@@ -882,7 +882,7 @@ struct Map {
 
 		// Throwaway arena just to carve the block with correct alignment
 		// IMPORTANT: The allocation order MUST be EXACTLY this one.
-		Arena arena = arena_from_buffer(block, layout.size);
+		Arena arena = arena_from_buffer({(u8*)block, layout.size});
 		u64* new_hashes = (u64*)arena.alloc(cap * sizeof(u64), alignof(u64));
 		K*   new_keys   = (K*)arena.alloc(cap * sizeof(K), alignof(K));
 		V*   new_vals   = (V*)arena.alloc(cap * sizeof(V), alignof(V));
