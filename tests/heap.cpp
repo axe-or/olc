@@ -75,6 +75,39 @@ bool heap_tests(){
 		heap.free(shrunk);
 	});
 
+	ok &= test("heap: realloc alignment change", [](Test& t){
+		Heap_Allocator heap = make_test_heap();
+
+		// Dropping to a weaker alignment never needs to move the block
+		u8* p = (u8*)heap.alloc({64, 512});
+		check(p != nullptr && (uintptr)p % 512 == 0);
+		for(usize i = 0; i < 64; i++){ p[i] = u8(i + 1); }
+		check(heap.realloc(p, {64, 512}, {32, 8}) == p);
+
+		// Stronger alignment on the same size, block must move unless it happens to be aligned already
+		for(usize align = 16; align <= 4096; align *= 2){
+			u8* q = (u8*)heap.realloc(p, {32, align / 2}, {32, align});
+			check(q != nullptr && (uintptr)q % align == 0);
+			bool kept = true;
+			for(usize i = 0; i < 32; i++){ kept = kept && q[i] == u8(i + 1); }
+			check(kept);
+			p = q;
+		}
+
+		// Huge requests fail and leave the original block intact
+		check(heap.realloc(p, {32, 4096}, {SIZE_MAX, 8}) == nullptr);
+		check(heap.realloc(p, {32, 4096}, {SIZE_MAX, 8192}) == nullptr);
+		bool kept = true;
+		for(usize i = 0; i < 32; i++){ kept = kept && p[i] == u8(i + 1); }
+		check(kept);
+		heap.free(p);
+
+		// Whole pool should be free again
+		void* big = heap.alloc({200 * 1024, 16});
+		check(big != nullptr);
+		heap.free(big);
+	});
+
 	ok &= test("heap: allocator interface", [](Test& t){
 		Heap_Allocator heap = make_test_heap();
 		Allocator allocator = heap.allocator();

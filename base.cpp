@@ -261,7 +261,7 @@ Allocator Arena::allocator(){
 
 //// Heap allocator
 void* Heap_Allocator::alloc(Memory_Layout layout) {
-	void* p = tlsf_memalign(impl, layout.align, layout.size);
+	void* p = tlsf_alloc(impl, layout.size, layout.align);
 	if(p){ mem_zero(p, layout.size); }
 	return p;
 }
@@ -271,27 +271,11 @@ void Heap_Allocator::free(void* p) {
 }
 
 void* Heap_Allocator::realloc(void* ptr, Memory_Layout old, Memory_Layout desired) {
-	// tlsf_realloc() only guarantees TLSF's base alignment if it has to move the block
-	if(old.align == desired.align && desired.align <= sizeof(void*)){
-		void* p = tlsf_realloc(impl, ptr, desired.size);
-		ensure((uintptr(p) & (desired.align - 1)) == 0, "invalid alignment after realloc");
-		if(p && old.size < desired.size){
-			mem_zero((u8*)p + old.size, desired.size - old.size);
-		}
-		return p;
+	void* p = tlsf_realloc(impl, ptr, desired.size, desired.align);
+	if(p && old.size < desired.size){
+		mem_zero((u8*)p + old.size, desired.size - old.size);
 	}
-
-	void* data = tlsf_memalign(impl, desired.align, desired.size);
-	usize n = min(old.size, desired.size);
-	if(data){
-		mem_copy_no_overlap(data, ptr, n);
-		tlsf_free(impl, ptr);
-		if(old.size < desired.size){
-			void* dest = (void*)(uintptr(data) + old.size);
-			mem_zero(dest, desired.size - old.size);
-		}
-	}
-	return data;
+	return p;
 }
 
 Heap_Allocator heap_from_buffer(Slice<u8> buf){

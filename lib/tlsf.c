@@ -492,7 +492,8 @@ static void* align_ptr(const void* ptr, size_t align)
 static size_t adjust_request_size(size_t size, size_t align)
 {
 	size_t adjust = 0;
-	if (size)
+	/* Reject sizes that would overflow align_up() and wrap to a small size. */
+	if (size && size < block_size_max)
 	{
 		const size_t aligned = align_up(size, align);
 
@@ -1112,15 +1113,7 @@ pool_t tlsf_get_pool(tlsf_t tlsf)
 	return tlsf_cast(pool_t, (char*)tlsf + tlsf_size());
 }
 
-void* tlsf_malloc(tlsf_t tlsf, size_t size)
-{
-	control_t* control = tlsf_cast(control_t*, tlsf);
-	const size_t adjust = adjust_request_size(size, ALIGN_SIZE);
-	block_header_t* block = block_locate_free(control, adjust);
-	return block_prepare_used(control, block, adjust);
-}
-
-void* tlsf_memalign(tlsf_t tlsf, size_t align, size_t size)
+void* tlsf_alloc(tlsf_t tlsf, size_t size, size_t align)
 {
 	control_t* control = tlsf_cast(control_t*, tlsf);
 	const size_t adjust = adjust_request_size(size, ALIGN_SIZE);
@@ -1137,17 +1130,25 @@ void* tlsf_memalign(tlsf_t tlsf, size_t align, size_t size)
 	const size_t size_with_gap = adjust_request_size(adjust + align + gap_minimum, align);
 
 	/*
-	** If alignment is less than or equals base alignment, we're done.
-	** If we requested 0 bytes, return null, as tlsf_malloc(0) does.
+	** If alignment is less than or equals base alignment, every free block
+	** is already suitably aligned. If we requested 0 bytes, return null.
 	*/
 	const size_t aligned_size = (adjust && align > ALIGN_SIZE) ? size_with_gap : adjust;
 
-	block_header_t* block = block_locate_free(control, aligned_size);
+	block_header_t* block = 0;
+
+	tlsf_assert(0 == (align & (align - 1)) && "must align to a power of two");
+
+	/* Alignments this large can't be satisfied, and would overflow size_with_gap. */
+	if (align < block_size_max)
+	{
+		block = block_locate_free(control, aligned_size);
+	}
 
 	/* This can't be a static assert. */
 	tlsf_assert(sizeof(block_header_t) == block_size_min + block_header_overhead);
 
-	if (block)
+	if (block && align > ALIGN_SIZE)
 	{
 		void* ptr = block_to_ptr(block);
 		void* aligned = align_ptr(ptr, align);
@@ -1198,27 +1199,31 @@ void tlsf_free(tlsf_t tlsf, void* ptr)
 ** shrinking the currently allocated block as required.
 **
 ** This routine handles the somewhat esoteric edge cases of realloc:
-** - a non-zero size with a null pointer will behave like malloc
+** - a non-zero size with a null pointer will behave like alloc
 ** - a zero size with a non-null pointer will behave like free
 ** - a request that cannot be satisfied will leave the original buffer
 **   untouched
 ** - an extended buffer size will leave the newly-allocated area with
 **   contents undefined
+** - if the current pointer does not satisfy the requested alignment, the
+**   block is always moved to a suitably aligned one
 */
-void* tlsf_realloc(tlsf_t tlsf, void* ptr, size_t size)
+void* tlsf_realloc(tlsf_t tlsf, void* ptr, size_t size, size_t align)
 {
 	control_t* control = tlsf_cast(control_t*, tlsf);
 	void* p = 0;
+
+	tlsf_assert(0 == (align & (align - 1)) && "must align to a power of two");
 
 	/* Zero-size requests are treated as free. */
 	if (ptr && size == 0)
 	{
 		tlsf_free(tlsf, ptr);
 	}
-	/* Requests with NULL pointers are treated as malloc. */
+	/* Requests with NULL pointers are treated as alloc. */
 	else if (!ptr)
 	{
-		p = tlsf_malloc(tlsf, size);
+		p = tlsf_alloc(tlsf, size, align);
 	}
 	else
 	{
@@ -1228,16 +1233,18 @@ void* tlsf_realloc(tlsf_t tlsf, void* ptr, size_t size)
 		const size_t cursize = block_size(block);
 		const size_t combined = cursize + block_size(next) + block_header_overhead;
 		const size_t adjust = adjust_request_size(size, ALIGN_SIZE);
+		const int misaligned = ptr != align_ptr(ptr, tlsf_max(align, ALIGN_SIZE));
 
 		tlsf_assert(!block_is_free(block) && "block already marked as free");
 
 		/*
-		** If the next block is used, or when combined with the current
-		** block, does not offer enough space, we must reallocate and copy.
+		** If the current block is not aligned as requested, or if the next
+		** block is used, or when combined with the current block, does not
+		** offer enough space, we must reallocate and copy.
 		*/
-		if (adjust > cursize && (!block_is_free(next) || adjust > combined))
+		if (misaligned || (adjust > cursize && (!block_is_free(next) || adjust > combined)))
 		{
-			p = tlsf_malloc(tlsf, size);
+			p = tlsf_alloc(tlsf, size, align);
 			if (p)
 			{
 				const size_t minsize = tlsf_min(cursize, size);
@@ -1245,7 +1252,7 @@ void* tlsf_realloc(tlsf_t tlsf, void* ptr, size_t size)
 				tlsf_free(tlsf, ptr);
 			}
 		}
-		else
+		else if (adjust)
 		{
 			/* Do we need to expand to the next block? */
 			if (adjust > cursize)
