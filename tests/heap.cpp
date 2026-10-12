@@ -114,17 +114,17 @@ bool heap_tests(){
 
 		check(allocator.query() == (Mem_Alloc | Mem_Grow | Mem_Shrink | Mem_Free));
 
-		u32* nums = (u32*)allocator.alloc(layout_of<u32>(4));
+		u32* nums = (u32*)allocator.alloc(layout_of_array<u32>(4));
 		check(nums != nullptr && nums[0] == 0 && nums[3] == 0);
 		for(u32 i = 0; i < 4; i++){ nums[i] = i * 10; }
 
-		nums = (u32*)allocator.grow(nums, layout_of<u32>(4), layout_of<u32>(64));
+		nums = (u32*)allocator.grow(nums, layout_of_array<u32>(4), layout_of_array<u32>(64));
 		check(nums != nullptr && nums[3] == 30 && nums[4] == 0 && nums[63] == 0);
 
-		nums = (u32*)allocator.shrink(nums, layout_of<u32>(64), layout_of<u32>(2));
+		nums = (u32*)allocator.shrink(nums, layout_of_array<u32>(64), layout_of_array<u32>(2));
 		check(nums != nullptr && nums[0] == 0 && nums[1] == 10);
 
-		allocator.free(nums, layout_of<u32>(2));
+		allocator.free(nums, layout_of_array<u32>(2));
 	});
 	return ok;
 }

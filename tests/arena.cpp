@@ -103,7 +103,7 @@ bool arena_tests(){
 		Point* made = a.make<Point>(Point{5, 6});
 		check(made != nullptr && made->x == 5 && made->y == 6);
 
-		Slice<i32> nums = a.make_slice<i32>(4, 7);
+		Slice<i32> nums = a.slice_make<i32>(4, 7);
 		check(nums.len() == 4 && nums[0] == 7 && nums[3] == 7);
 	});
 

@@ -524,7 +524,12 @@ bool valid_alignment(usize align){
 }
 
 template<typename T>
-constexpr auto layout_of(usize count = 0){
+constexpr auto layout_of(){
+	return Memory_Layout{ sizeof(T) , alignof(T) };
+}
+
+template<typename T>
+constexpr auto layout_of_array(usize count){
 	return Memory_Layout{ sizeof(T) * count, alignof(T) };
 }
 
@@ -559,7 +564,33 @@ struct Allocator {
 	attribute_force_inline void free_all() const {
 		proc_(impl_, Mem_FreeAll, nullptr, {}, {});
 	}
+
 };
+
+	template<typename T, typename ...Args>
+	T* make(Args&& ...args){
+		void* storage = alloc(layout_of<T>());
+		if(storage == nullptr){ return nullptr; }
+		return new (New_Tag{}, storage) T(::forward<Args>(args)...);
+	}
+
+template<typename T, typename ...Args>
+Slice<T> slice_make(Allocator a, usize count, Args&& ...args){
+	T* p = static_cast<T*>(a.alloc(layout_of_array<T>(count)));
+	if(p == nullptr){ return {}; }
+
+	for(usize i = 0; i < count; i += 1){
+		new (New_Tag{}, p + i) T(::forward<Args>(args)...);
+	}
+	return Slice<T>{ p, count };
+}
+
+
+// Allocator that always fails allocations
+Allocator null_allocator();
+
+// Allocator that instantly explodes if invoked
+Allocator panic_allocator();
 
 //// Arena
 struct Arena {
@@ -583,15 +614,22 @@ struct Arena {
 
 	template<typename T, typename ...Args>
 	T* make(Args&& ...args){
-		void* storage = alloc(sizeof(T), alignof(T));
-		if(storage == nullptr){ return nullptr; }
-		return new (New_Tag{}, storage) T(::forward<Args>(args)...);
+		auto [size, align] = layout_of<T>();
+		void* p = alloc(size, align);
+		if(!p){
+			return nullptr;
+		}
+
+		return new (New_Tag{}, p) T(::forward<Args>(args)...);
 	}
 
 	template<typename T, typename ...Args>
-	Slice<T> make_slice(usize count, Args&& ...args){
-		T* p = static_cast<T*>(alloc(sizeof(T) * count, alignof(T)));
-		if(p == nullptr){ return {}; }
+	Slice<T> slice_make(usize count, Args&& ...args){
+		auto [size, align] = layout_of_array<T>(count);
+		T* p = static_cast<T*>(alloc(size, align));
+		if(!p){
+			return {};
+		}
 
 		for(usize i = 0; i < count; i += 1){
 			new (New_Tag{}, p + i) T(::forward<Args>(args)...);
@@ -631,7 +669,7 @@ struct Dyn_Array {
 			return true;
 		}
 
-		void* p = allocator_.grow(data_, layout_of<T>(capacity_), layout_of<T>(desired));
+		void* p = allocator_.grow(data_, layout_of_array<T>(capacity_), layout_of_array<T>(desired));
 		if(!p){
 			return false;
 		}
@@ -642,7 +680,7 @@ struct Dyn_Array {
 	}
 
 	bool shrink_to_fit(){
-		void* p = allocator_.shrink(data_, layout_of<T>(capacity_), layout_of<T>(length_));
+		void* p = allocator_.shrink(data_, layout_of_array<T>(capacity_), layout_of_array<T>(length_));
 		if(!p){ return false; }
 		data_ = (T*)p;
 		capacity_ = length_;
@@ -744,7 +782,7 @@ struct Dyn_Array {
 		for(usize i = 0; i < length_; i += 1){
 			data_[i].~T();
 		}
-		allocator_.free(data_, layout_of<T>(capacity_));
+		allocator_.free(data_, layout_of_array<T>(capacity_));
 	}
 
 	void clear(){
@@ -757,7 +795,7 @@ struct Dyn_Array {
 };
 
 template<typename T>
-auto make_dynamic_array(usize initial_cap, Allocator alloc){
+auto dynamic_array_make(usize initial_cap, Allocator alloc){
 	Dyn_Array<T> arr = {
 		.data_ = nullptr,
 		.length_ = 0,
@@ -1033,7 +1071,7 @@ struct Map {
 };
 
 template<Eq K, typename V>
-auto make_map(usize capacity, Allocator a){
+auto map_make(usize capacity, Allocator a){
 	auto m = Map<K, V>{
 		.hashes = nullptr,
 		.keys = nullptr,
@@ -1047,15 +1085,13 @@ auto make_map(usize capacity, Allocator a){
 	return m;
 }
 
-//// Basic typed arena for smaller pointer-like things
+//// Typed arena
 
 template<typename T, Unsigned_Integer I = u32>
 struct Typed_Arena_ID {
 	I v;
 
-	constexpr bool operator!(){
-		return !v;
-	}
+	constexpr bool operator!(){ return !v; }
 
 	constexpr auto operator<=>(Typed_Arena_ID<T, I> const&) const = default;
 };
@@ -1072,7 +1108,7 @@ struct Typed_Arena {
 
 	T const& operator[](ID id) const {
 		ensure(id.v > 0 && id.v < storage.len(), "invalid ID");
-		return storage[id - 1];
+		return storage[id.v - 1];
 	}
 
 	T* get(ID id){
@@ -1107,7 +1143,7 @@ struct Typed_Arena {
 template<typename T, Unsigned_Integer I = u32>
 auto make_typed_arena(usize capacity, Allocator a){
 	return Typed_Arena<T, I> {
-		.storage = make_dynamic_array<T>(capacity, a),
+		.storage = dynamic_array_make<T>(capacity, a),
 	};
 }
 

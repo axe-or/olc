@@ -162,6 +162,27 @@ Rune_Encoded rune_encode(rune r){
 	}
 }
 
+//// Allocator
+static inline
+uintptr null_allocator_proc (void*, Allocator_Mode, void*, Memory_Layout, Memory_Layout){
+	return 0;
+}
+
+static inline
+uintptr panic_allocator_proc (void*, Allocator_Mode, void*, Memory_Layout, Memory_Layout){
+	panic("invoked panic allocator");
+}
+
+// Allocator that always fails allocations
+Allocator null_allocator(){
+	return Allocator{ nullptr, null_allocator_proc };
+}
+
+// Allocator that instantly explodes if invoked
+Allocator panic_allocator(){
+	return Allocator{ nullptr, panic_allocator_proc };
+}
+
 //// Arena
 Arena arena_from_buffer(Slice<u8> buffer){
 	ensure(buffer.raw_data() != nullptr || buffer.len() == 0, "invalid arena buffer");
@@ -218,12 +239,21 @@ bool Arena::resize(void* ptr, usize new_size){
 }
 
 void* Arena::realloc(void* ptr, usize old_size, usize new_size, usize align){
-	if(ptr == nullptr){ return alloc(new_size, align); }
+	if(ptr == nullptr){
+		return alloc(new_size, align);
+	}
+
 	ensure(align != 0 && (align & (align - 1)) == 0, "invalid arena alignment");
-	if((uintptr)ptr % align == 0 && resize(ptr, new_size)){ return ptr; }
+	usize aligned = ((uintptr)ptr & (align - 1)) == 0;
+	if(aligned && resize(ptr, new_size)){
+		return ptr;
+	}
 
 	void* allocation = alloc(new_size, align);
-	if(allocation == nullptr){ return nullptr; }
+	if(allocation == nullptr){
+		return nullptr;
+	}
+
 	memcpy(allocation, ptr, min(old_size, new_size));
 	return allocation;
 }

@@ -18,7 +18,7 @@ bool dyn_array_tests(){
 	ok &= test("dyn_array: append and pop", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer({storage, sizeof(storage)});
-		auto arr = make_dynamic_array<i32>(4, arena.allocator());
+		auto arr = dynamic_array_make<i32>(4, arena.allocator());
 		check(arr.len() == 0 && arr.cap() == 4 && arr.raw_data() != nullptr);
 
 		for(i32 i = 0; i < 100; i++){ arr.append(i); }
@@ -37,7 +37,7 @@ bool dyn_array_tests(){
 	ok &= test("dyn_array: insert and remove", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer({storage, sizeof(storage)});
-		auto arr = make_dynamic_array<i32>(0, arena.allocator());
+		auto arr = dynamic_array_make<i32>(0, arena.allocator());
 
 		check(arr.insert(0, 2));
 		check(arr.insert(0, 0));
@@ -56,7 +56,7 @@ bool dyn_array_tests(){
 	ok &= test("dyn_array: swap insert and remove", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer({storage, sizeof(storage)});
-		auto arr = make_dynamic_array<i32>(0, arena.allocator());
+		auto arr = dynamic_array_make<i32>(0, arena.allocator());
 
 		for(i32 i = 0; i < 4; i++){ arr.append(i * 10); }
 		check(arr.insert_swap(1, 99));
@@ -73,7 +73,7 @@ bool dyn_array_tests(){
 	ok &= test("dyn_array: views, reserve, shrink", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer({storage, sizeof(storage)});
-		auto arr = make_dynamic_array<i32>(2, arena.allocator());
+		auto arr = dynamic_array_make<i32>(2, arena.allocator());
 		for(i32 i = 0; i < 6; i++){ arr.append(i); }
 
 		check(arr.take(2).len() == 2 && arr.take(2)[1] == 1);
@@ -93,7 +93,7 @@ bool dyn_array_tests(){
 	ok &= test("dyn_array: heap backed", [](Test& t){
 		alignas(16) static u8 storage[256 * 1024];
 		Heap_Allocator heap = heap_from_buffer({storage, sizeof(storage)});
-		auto arr = make_dynamic_array<u64>(0, heap.allocator());
+		auto arr = dynamic_array_make<u64>(0, heap.allocator());
 		for(u64 i = 0; i < 1000; i++){ arr.append(i * i); }
 		check(arr.len() == 1000 && arr[999] == 999 * 999 && arr[10] == 100);
 		arr.destroy();

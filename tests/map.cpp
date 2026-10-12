@@ -16,7 +16,7 @@ bool map_tests(){
 	bool ok = true;
 	ok &= test("map: insert, get, contains", [](Test& t){
 		Heap_Allocator heap = make_map_heap();
-		auto m = make_map<i32, i32>(0, heap.allocator());
+		auto m = map_make<i32, i32>(0, heap.allocator());
 		check(m.length == 0 && m.capacity == 0);
 		check(!m.contains_key(1));
 		check(!m.get(1).b);
@@ -41,7 +41,7 @@ bool map_tests(){
 
 	ok &= test("map: growth", [](Test& t){
 		Heap_Allocator heap = make_map_heap();
-		auto m = make_map<i32, i32>(8, heap.allocator());
+		auto m = map_make<i32, i32>(8, heap.allocator());
 		check(m.capacity == 8);
 
 		for(i32 i = 0; i < 2000; i++){ m.insert(i * 7, i); }
@@ -61,7 +61,7 @@ bool map_tests(){
 
 	ok &= test("map: remove", [](Test& t){
 		Heap_Allocator heap = make_map_heap();
-		auto m = make_map<i32, i32>(0, heap.allocator());
+		auto m = map_make<i32, i32>(0, heap.allocator());
 		for(i32 i = 0; i < 500; i++){ m.insert(i, -i); }
 
 		// Remove the even keys, odd ones must survive the backward shifting
@@ -115,7 +115,7 @@ bool map_tests(){
 
 	ok &= test("map: string keys", [](Test& t){
 		Heap_Allocator heap = make_map_heap();
-		auto m = make_map<String, i32>(0, heap.allocator());
+		auto m = map_make<String, i32>(0, heap.allocator());
 
 		m.insert("apple", 1);
 		m.insert("banana", 2);
@@ -134,7 +134,7 @@ bool map_tests(){
 
 	ok &= test("map: reset", [](Test& t){
 		Heap_Allocator heap = make_map_heap();
-		auto m = make_map<i32, i32>(0, heap.allocator());
+		auto m = map_make<i32, i32>(0, heap.allocator());
 		for(i32 i = 0; i < 20; i++){ m.insert(i, i); }
 
 		m.reset();
