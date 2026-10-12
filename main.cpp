@@ -3,6 +3,7 @@
 extern "C" int printf(char const*, ...);
 
 void entrypoint(){
+	Typed_Arena<i32, u16> arena = {0};
 }
 
 void init(){

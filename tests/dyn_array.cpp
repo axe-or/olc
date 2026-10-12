@@ -4,8 +4,8 @@
 namespace test {
 
 static bool dyn_array_equals(Dyn_Array<i32> const& arr, Slice<i32> expected){
-	if(arr.length != expected.len()){ return false; }
-	for(usize i = 0; i < arr.length; i++){
+	if(arr.len() != expected.len()){ return false; }
+	for(usize i = 0; i < arr.len(); i++){
 		if(arr[i] != expected[i]){ return false; }
 	}
 	return true;
@@ -19,18 +19,18 @@ bool dyn_array_tests(){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer({storage, sizeof(storage)});
 		auto arr = make_dynamic_array<i32>(4, arena.allocator());
-		check(arr.length == 0 && arr.capacity == 4 && arr.data != nullptr);
+		check(arr.len() == 0 && arr.cap() == 4 && arr.raw_data() != nullptr);
 
 		for(i32 i = 0; i < 100; i++){ arr.append(i); }
-		check(arr.length == 100 && arr.capacity >= 100);
+		check(arr.len() == 100 && arr.cap() >= 100);
 		bool in_order = true;
 		for(i32 i = 0; i < 100; i++){ in_order = in_order && arr[usize(i)] == i; }
 		check(in_order);
 
 		check(arr.pop());
-		check(arr.length == 99 && arr[98] == 98);
+		check(arr.len() == 99 && arr[98] == 98);
 		while(arr.pop()){}
-		check(arr.length == 0);
+		check(arr.len() == 0);
 		check(!arr.pop());
 	});
 
@@ -81,11 +81,11 @@ bool dyn_array_tests(){
 		check(arr.slice(1, 3).len() == 2 && arr.slice(1, 3)[1] == 2);
 
 		check(arr.reserve(64));
-		check(arr.capacity == 64 && EXPECT_ITEMS(arr, 0, 1, 2, 3, 4, 5));
-		check(arr.reserve(8) && arr.capacity == 64);
+		check(arr.cap() == 64 && EXPECT_ITEMS(arr, 0, 1, 2, 3, 4, 5));
+		check(arr.reserve(8) && arr.cap() == 64);
 
 		check(arr.shrink_to_fit());
-		check(arr.capacity == 6 && EXPECT_ITEMS(arr, 0, 1, 2, 3, 4, 5));
+		check(arr.cap() == 6 && EXPECT_ITEMS(arr, 0, 1, 2, 3, 4, 5));
 
 		arr.destroy();
 	});
@@ -95,7 +95,7 @@ bool dyn_array_tests(){
 		Heap_Allocator heap = heap_from_buffer({storage, sizeof(storage)});
 		auto arr = make_dynamic_array<u64>(0, heap.allocator());
 		for(u64 i = 0; i < 1000; i++){ arr.append(i * i); }
-		check(arr.length == 1000 && arr[999] == 999 * 999 && arr[10] == 100);
+		check(arr.len() == 1000 && arr[999] == 999 * 999 && arr[10] == 100);
 		arr.destroy();
 	});
 	return ok;

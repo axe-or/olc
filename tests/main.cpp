@@ -5,7 +5,6 @@
 #include "rune.cpp"
 #include "dyn_array.cpp"
 #include "map.cpp"
-#include "option.cpp"
 
 int main(){
 	bool ok = true;
@@ -16,12 +15,12 @@ int main(){
 	ok &= test::rune_tests();
 	ok &= test::dyn_array_tests();
 	ok &= test::map_tests();
-	ok &= test::option_tests();
 
 	if(!ok){
-		printf("some tests failed\n");
+		printf("!!!! some tests failed !!!!\n");
 		return 1;
 	}
+
 	return 0;
 }
 

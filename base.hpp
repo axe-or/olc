@@ -108,6 +108,8 @@ using Source_Location = std::source_location;
 
 #define clamp(lo, x, hi) min(max((lo), (x)), (hi))
 
+#define attr_get(name, expr) attribute_force_inline constexpr auto name () const { return expr ; }
+
 template<typename T>
 void swap_ptr(T* a, T* b){
 	T tmp = *a;
@@ -619,141 +621,148 @@ Heap_Allocator heap_from_buffer(Slice<u8> buf);
 
 template<typename T>
 struct Dyn_Array {
-	T* data;
-	usize length;
-	usize capacity;
-
-	Allocator allocator;
+	T* data_;
+	usize length_;
+	usize capacity_;
+	Allocator allocator_;
 
 	bool reserve(usize desired){
-		if(capacity >= desired){
+		if(capacity_ >= desired){
 			return true;
 		}
 
-		void* p = allocator.grow(data, layout_of<T>(capacity), layout_of<T>(desired));
+		void* p = allocator_.grow(data_, layout_of<T>(capacity_), layout_of<T>(desired));
 		if(!p){
 			return false;
 		}
 
-		data = (T*)p;
-		capacity = desired;
+		data_ = (T*)p;
+		capacity_ = desired;
 		return true;
 	}
 
 	bool shrink_to_fit(){
-		void* p = allocator.shrink(data, layout_of<T>(capacity), layout_of<T>(length));
+		void* p = allocator_.shrink(data_, layout_of<T>(capacity_), layout_of<T>(length_));
 		if(!p){ return false; }
-		data = (T*)p;
-		capacity = length;
+		data_ = (T*)p;
+		capacity_ = length_;
 		return true;
 	}
 
 	// Insert value at `idx`, shifting all elements
 	bool insert(usize idx, T const& val){
-		if(idx > length){ return false; }
-		if(length == capacity){
-			usize desired = max(usize(16), capacity * 2);
-			if(desired < capacity || !reserve(desired)){ return false; }
+		if(idx > length_){ return false; }
+		if(length_ == capacity_){
+			usize desired = max(usize(16), capacity_ * 2);
+			if(desired < capacity_ || !reserve(desired)){ return false; }
 		}
-		for(usize i = length; i > idx; i -= 1){
-			data[i] = data[i - 1];
+		for(usize i = length_; i > idx; i -= 1){
+			data_[i] = data_[i - 1];
 		}
-		data[idx] = val;
-		length += 1;
+		data_[idx] = val;
+		length_ += 1;
 		return true;
 	}
 
 	// Insert value at `idx` by swapping the value at position with the last value
 	bool insert_swap(usize idx, T const& val){
-		if(idx > length){ return false; }
-		if(length == capacity){
-			usize desired = capacity == 0 ? 8 : capacity * 2;
-			if(desired < capacity || !reserve(desired)){
+		if(idx > length_){ return false; }
+		if(length_ == capacity_){
+			usize desired = capacity_ == 0 ? 8 : capacity_ * 2;
+			if(desired < capacity_ || !reserve(desired)){
 				return false;
 			}
 		}
 
-		if(idx < length){
-			data[length] = data[idx];
+		if(idx < length_){
+			data_[length_] = data_[idx];
 		}
 
-		data[idx] = val;
-		length += 1;
+		data_[idx] = val;
+		length_ += 1;
 		return true;
 	}
 
 	// Remove value `idx`, shifting all elements
 	bool remove(usize idx){
-		if(idx >= length){ return false; }
-		for(usize i = idx; i + 1 < length; i += 1){
-			data[i] = data[i + 1];
+		if(idx >= length_){ return false; }
+		for(usize i = idx; i + 1 < length_; i += 1){
+			data_[i] = data_[i + 1];
 		}
-		length -= 1;
+		length_ -= 1;
 		return true;
 	}
 
 	// Remove value at `idx` by swapping the value at position with the last value
 	bool remove_swap(usize idx){
-		if(idx >= length){ return false; }
-		length -= 1;
-		if(idx < length){
-			data[idx] = data[length];
+		if(idx >= length_){ return false; }
+		length_ -= 1;
+		if(idx < length_){
+			data_[idx] = data_[length_];
 		}
 		return true;
 	}
 
 	// Push item to end of array
 	bool append(T const& val){
-		return insert_swap(length, val);
+		return insert_swap(length_, val);
 	}
 
 	// Pop last item of array
 	bool pop(){
-		if(length == 0){ return false; }
-		length -= 1;
+		if(length_ == 0){ return false; }
+		length_ -= 1;
 		return true;
 	}
 
 	T& operator[](usize idx){
-		ensure(idx < length, "slice index out of bounds");
-		return data[idx];
+		ensure(idx < length_, "slice index out of bounds");
+		return data_[idx];
 	}
 
 	T const& operator[](usize idx) const{
-		ensure(idx < length, "slice index out of bounds");
-		return data[idx];
+		ensure(idx < length_, "slice index out of bounds");
+		return data_[idx];
 	}
 
 	Slice<T> take(usize n){
-		ensure(n <= length, "cannot take more than length");
-		return Slice<T>{ data, n };
+		ensure(n <= length_, "cannot take more than length");
+		return Slice<T>{ data_, n };
 	}
 
 	Slice<T> skip(usize n){
-		ensure(n <= length, "cannot take more than length");
-		return Slice<T>{ &data[n], length - n };
+		ensure(n <= length_, "cannot take more than length");
+		return Slice<T>{ &data_[n], length_ - n };
 	}
 
 	Slice<T> slice(usize start, usize end){
-		ensure(start <= end && end <= length, "invalid slice indices");
-		return Slice<T>{ &data[start], end - start };
+		ensure(start <= end && end <= length_, "invalid slice indices");
+		return Slice<T>{ &data_[start], end - start };
 	}
 
 	void destroy(){
-		for(usize i = 0; i < length; i += 1){
-			data[i].~T();
+		for(usize i = 0; i < length_; i += 1){
+			data_[i].~T();
 		}
-		allocator.free(data, layout_of<T>(capacity));
+		allocator_.free(data_, layout_of<T>(capacity_));
 	}
+
+	void clear(){
+		length_ = 0;
+	}
+
+	attr_get(len, length_);
+	attr_get(cap, capacity_);
+	attr_get(raw_data, data_);
 };
 
 template<typename T>
 auto make_dynamic_array(usize initial_cap, Allocator alloc){
 	Dyn_Array<T> arr = {
-		.data = nullptr,
-		.length = 0,
-		.capacity = 0,
-		.allocator = alloc,
+		.data_ = nullptr,
+		.length_ = 0,
+		.capacity_ = 0,
+		.allocator_ = alloc,
 	};
 	arr.reserve(initial_cap);
 	return arr;
@@ -1038,173 +1047,68 @@ auto make_map(usize capacity, Allocator a){
 	return m;
 }
 
-//// Option
+//// Basic typed arena for smaller pointer-like things
 
-// Tag type for constructing empty options, `Option<T> x = None;`
-struct None_Type {};
-inline constexpr None_Type None{};
+template<typename T, Unsigned_Integer I = u32>
+struct Typed_Arena_ID {
+	I v;
 
-// Optional value, the zero value is None (and the payload is zeroed too).
-template<typename T>
-struct Option {
-private:
-	union { T data_; };
-	bool has_value_;
-
-public:
-	constexpr Option() : data_{}, has_value_{false} {}
-	constexpr Option(None_Type) : data_{}, has_value_{false} {}
-	constexpr Option(T const& value) : data_{value}, has_value_{true} {}
-
-
-	template<Predicate<T> F>
-	constexpr bool is_some_and(F&& pred) const {
-		return has_value_ && bool(pred(data_));
+	constexpr bool operator!(){
+		return !v;
 	}
 
-	template<Predicate<T> F>
-	constexpr bool is_none_or(F&& pred) const {
-		return !has_value_ || bool(pred(data_));
-	}
-
-	T unwrap(caller_location) const {
-		if(!has_value_){ panic("called unwrap() on a None value", caller_loc); }
-		return data_;
-	}
-
-	T expect(cstring msg, caller_location) const {
-		if(!has_value_){ panic(msg, caller_loc); }
-		return data_;
-	}
-
-	// No check whatsoever, if None this returns whatever is in the payload (the zero value by default)
-	constexpr T unwrap_unchecked() const { return data_; }
-
-	constexpr T unwrap_or(T const& fallback) const {
-		return has_value_ ? data_ : fallback;
-	}
-
-	template<Callable<T> F>
-	constexpr T unwrap_or_else(F&& f) const {
-		return has_value_ ? data_ : T{f()};
-	}
-
-	constexpr T unwrap_or_default() const {
-		return has_value_ ? data_ : T{};
-	}
-
-	//// Combinators
-	template<typename F>
-	constexpr auto map(F&& f) const {
-		using U = Remove_Reference<decltype(f(data_))>;
-		if(has_value_){ return Option<U>(f(data_)); }
-		return Option<U>(None);
-	}
-
-	template<typename U, Callable<U, T> F>
-	constexpr U map_or(U const& fallback, F&& f) const {
-		return has_value_ ? U(f(data_)) : fallback;
-	}
-
-	template<typename D, typename F>
-	constexpr auto map_or_else(D&& fallback, F&& f) const -> decltype(f(data_)) {
-		return has_value_ ? f(data_) : fallback();
-	}
-
-	// `f` must return an Option<U>
-	template<typename F>
-	constexpr auto and_then(F&& f) const {
-		using R = Remove_Reference<decltype(f(data_))>;
-		if(has_value_){ return f(data_); }
-		return R(None);
-	}
-
-	template<typename U>
-	constexpr Option<U> and_(Option<U> const& other) const {
-		if(has_value_){ return other; }
-		return None;
-	}
-
-	// Named `or_` because `or` is an alternative token in C++
-	constexpr Option or_(Option const& other) const {
-		return has_value_ ? *this : other;
-	}
-
-	template<Callable<Option> F>
-	constexpr Option or_else(F&& f) const {
-		return has_value_ ? *this : Option(f());
-	}
-
-	constexpr Option xor_(Option const& other) const {
-		if(has_value_ && !other.has_value_){ return *this; }
-		if(!has_value_ && other.has_value_){ return other; }
-		return None;
-	}
-
-	template<Predicate<T> F>
-	constexpr Option filter(F&& pred) const {
-		if(has_value_ && bool(pred(data_))){ return *this; }
-		return None;
-	}
-
-	//// Mutation
-	// Takes the value out, leaving None (with a zeroed payload) in its place
-	constexpr Option take(){
-		Option out = *this;
-		*this = None;
-		return out;
-	}
-
-	template<Predicate<T> F>
-	constexpr Option take_if(F&& pred){
-		if(has_value_ && bool(pred(data_))){ return take(); }
-		return None;
-	}
-
-	// Puts `value` in, returning the previous contents
-	constexpr Option replace(T const& value){
-		Option out = *this;
-		*this = Option(value);
-		return out;
-	}
-
-	constexpr T& insert(T const& value){
-		*this = Option(value);
-		return data_;
-	}
-
-	constexpr T& get_or_insert(T const& value){
-		if(!has_value_){ *this = Option(value); }
-		return data_;
-	}
-
-	template<Callable<T> F>
-	constexpr T& get_or_insert_with(F&& f){
-		if(!has_value_){ *this = Option(T(f())); }
-		return data_;
-	}
-
-	constexpr T& get_or_insert_default(){
-		if(!has_value_){ *this = Option(T{}); }
-		return data_;
-	}
-
-	attribute_force_inline constexpr bool is_some() const { return has_value_; }
-	attribute_force_inline constexpr bool is_none() const { return !has_value_; }
-	attribute_force_inline constexpr auto as_ptr() { return has_value_ ? &data_ : nullptr; }
-	attribute_force_inline constexpr auto as_ptr() const { return has_value_ ? &data_ : nullptr; }
-
-	constexpr bool operator==(Option const& other) const requires Eq<T> {
-		if(has_value_ != other.has_value_){
-			return false;
-		}
-		return !has_value_ || bool(data_ == other.data_);
-	}
-
-	constexpr bool operator==(None_Type) const { return !has_value_; }
+	constexpr auto operator<=>(Typed_Arena_ID<T, I> const&) const = default;
 };
 
-template<typename T>
-constexpr Option<T> Some(T const& value){
-	return Option<T>(value);
+template<typename T, Unsigned_Integer I = u32>
+struct Typed_Arena {
+	using ID = Typed_Arena_ID<T, I>;
+	Dyn_Array<T> storage;
+
+	T& operator[](ID id){
+		ensure(id.v > 0 && id.v < storage.len(), "invalid ID");
+		return storage[id - 1];
+	}
+
+	T const& operator[](ID id) const {
+		ensure(id.v > 0 && id.v < storage.len(), "invalid ID");
+		return storage[id - 1];
+	}
+
+	T* get(ID id){
+		if(id.v == 0 || id.v >= storage.len()){
+			return nullptr;
+		}
+		return &storage[id.v - 1];
+	}
+
+	T const* get(ID id) const {
+		if(id.v == 0 || id.v >= storage.len()){
+			return nullptr;
+		}
+		return &storage[id.v - 1];
+	}
+
+	ID put(T const& val){
+		bool ok = storage.append(val);
+		if(!ok){ return 0; }
+		return ID{storage.len()};
+	}
+
+	void reset(){
+		storage.clear();
+	}
+
+	void destroy(){
+		storage.destroy();
+	}
+};
+
+template<typename T, Unsigned_Integer I = u32>
+auto make_typed_arena(usize capacity, Allocator a){
+	return Typed_Arena<T, I> {
+		.storage = make_dynamic_array<T>(capacity, a),
+	};
 }
+
+#undef attr_get
