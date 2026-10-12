@@ -292,6 +292,209 @@ concept Callable = requires(F f, Args... args){
 template<typename F, typename ... Args>
 concept Predicate = Callable<F, bool, Args...>;
 
+// Type returned by calling `F` with `Args...`
+template<typename F, typename ... Args>
+using Call_Result = decltype(detail::declval<F>(0)(detail::declval<Args>(0)...));
+
+//// Result
+
+// Tags produced by result_ok() / result_err(), they convert to any Result with
+// compatible types, this is an implicit conversion trick, it should be avoided
+// but is permitted in this case because of significant improvements to
+// ergonomics
+template<typename T>
+struct Result_Ok { T value; };
+
+template<>
+struct Result_Ok<void> {};
+
+template<typename E>
+struct Result_Err { E error; };
+
+template<typename T>
+constexpr Result_Ok<T> result_ok(T value){ return {value}; }
+
+constexpr Result_Ok<void> result_ok(){ return {}; }
+
+template<typename E>
+constexpr Result_Err<E> result_err(E error){ return {error}; }
+
+// Either a value or an error
+template<typename T, typename E>
+struct [[nodiscard]] Result {
+private:
+	bool has_value_ = false;
+	union {
+		E error_ = {};
+		T value_;
+	};
+
+public:
+	constexpr Result() = default;
+
+	template<Convertible_To<T> U>
+	constexpr Result(Result_Ok<U> ok) : has_value_{true}, value_(ok.value){}
+
+	template<Convertible_To<E> U>
+	constexpr Result(Result_Err<U> err) : has_value_{false}, error_(err.error){}
+
+	attribute_force_inline constexpr bool has_value() const { return has_value_; }
+
+	T unwrap(caller_location) const {
+		if(!has_value_){
+			panic("unwrap() on error result", caller_loc);
+		}
+		return value_;
+	}
+
+	T unwrap_unchecked() const {
+		return value_;
+	}
+
+	E unwrap_err(caller_location) const {
+		if(has_value_){
+			panic("unwrap_err() on result with a value", caller_loc);
+		}
+		return error_;
+	}
+
+	E unwrap_err_unchecked() const {
+		return error_;
+	}
+
+	T expect(cstring msg, caller_location) const {
+		if(!has_value_){
+			panic(msg, caller_loc);
+		}
+		return value_;
+	}
+
+	E expect_err(cstring msg, caller_location) const {
+		if(has_value_){
+			panic(msg, caller_loc);
+		}
+		return error_;
+	}
+
+	T unwrap_or(T fallback) const {
+		return has_value_ ? value_ : fallback;
+	}
+
+	// `f(error)` computes the fallback, only called when there is no value
+	template<Callable<T, E> F>
+	T unwrap_or_else(F&& f) const {
+		return has_value_ ? value_ : f(error_);
+	}
+
+	// Result<U, E> with `f(value)` as the value, errors pass through untouched
+	template<typename F> requires Callable<F, Call_Result<F, T>, T>
+	auto map(F&& f) const -> Result<Call_Result<F, T>, E> {
+		if(!has_value_){ return result_err(error_); }
+		if constexpr(detail::is_void<Call_Result<F, T>>){
+			f(value_);
+			return result_ok();
+		}
+		else {
+			return result_ok(f(value_));
+		}
+	}
+
+	// Result<T, E2> with `f(error)` as the error, values pass through untouched
+	template<typename F> requires Callable<F, Call_Result<F, E>, E>
+	auto map_err(F&& f) const -> Result<T, Call_Result<F, E>> {
+		if(has_value_){ return result_ok(value_); }
+		return result_err(f(error_));
+	}
+
+	// Chain a fallible operation: `f(value)` returns a Result, only called when there is a value
+	template<typename F> requires Callable<F, Call_Result<F, T>, T>
+	auto and_then(F&& f) const -> Call_Result<F, T> {
+		if(!has_value_){ return result_err(error_); }
+		return f(value_);
+	}
+
+	// Recover from an error: `f(error)` returns a Result, only called when there is no value
+	template<typename F> requires Callable<F, Call_Result<F, E>, E>
+	auto or_else(F&& f) const -> Call_Result<F, E> {
+		if(has_value_){ return result_ok(value_); }
+		return f(error_);
+	}
+};
+
+// Result of an operation that only produces an error
+template<typename E>
+struct [[nodiscard]] Result<void, E> {
+private:
+	bool has_value_ = false;
+	E error_ = {};
+
+public:
+	constexpr Result() = default;
+
+	constexpr Result(Result_Ok<void>) : has_value_{true}{}
+
+	template<Convertible_To<E> U>
+	constexpr Result(Result_Err<U> err) : has_value_{false}, error_(err.error){}
+
+	attribute_force_inline constexpr bool has_value() const { return has_value_; }
+
+	void unwrap(caller_location) const {
+		ensure(has_value_, "unwrap() on error result", caller_loc);
+	}
+
+	E unwrap_err(caller_location) const {
+		ensure(!has_value_, "unwrap_err() on result with a value", caller_loc);
+		return error_;
+	}
+
+	void expect(cstring msg, caller_location) const {
+		ensure(has_value_, msg, caller_loc);
+	}
+
+	E expect_err(cstring msg, caller_location) const {
+		ensure(!has_value_, msg, caller_loc);
+		return error_;
+	}
+
+	// Result<U, E> with `f()` as the value, errors pass through untouched
+	template<typename F> requires Callable<F, Call_Result<F>>
+	auto map(F&& f) const -> Result<Call_Result<F>, E> {
+		if(!has_value_){ return result_err(error_); }
+		if constexpr(detail::is_void<Call_Result<F>>){
+			f();
+			return result_ok();
+		}
+		else {
+			return result_ok(f());
+		}
+	}
+
+	template<typename F> requires Callable<F, Call_Result<F, E>, E>
+	auto map_err(F&& f) const -> Result<void, Call_Result<F, E>> {
+		if(has_value_){ return result_ok(); }
+		return result_err(f(error_));
+	}
+
+	template<typename F> requires Callable<F, Call_Result<F>>
+	auto and_then(F&& f) const -> Call_Result<F> {
+		if(!has_value_){ return result_err(error_); }
+		return f();
+	}
+
+	template<typename F> requires Callable<F, Call_Result<F, E>, E>
+	auto or_else(F&& f) const -> Call_Result<F, E> {
+		if(has_value_){ return result_ok(); }
+		return f(error_);
+	}
+};
+
+// Return the error of `res` from the enclosing function if it has one, `res` is
+// evaluated once. The enclosing function must return a Result whose error type
+#define err_return(res) do { \
+	auto const& err_return_res_ = (res); \
+	if(!err_return_res_.has_value()){ return result_err(err_return_res_.unwrap_err_unchecked()); } \
+} while(0)
+
 //// Slice
 template<typename T>
 struct Slice {
