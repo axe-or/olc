@@ -1,0 +1,96 @@
+#pragma once
+#include "base.hpp"
+
+#define TOKENS_SEP \
+	X(CurlyOpen, "(") \
+	X(CurlyClose, ")") \
+	X(SquareOpen, "[") \
+	X(SquareClose, "]") \
+	X(ParenOpen, "{") \
+	X(ParenClose, "}") \
+	X(Colon, ":") \
+	X(Semicolon, ";") \
+	X(Comma, ",") \
+	X(Dot, ".") \
+	X(Arrow, "->") \
+	X(Plus, "+") \
+	X(Minus, "-") \
+	X(Star, "*") \
+	X(Slash, "/") \
+	X(And, "&") \
+	X(Or, "|") \
+	X(Tilde, "~") \
+	X(ShLeft, "<<") \
+	X(ShRight, ">>") \
+	X(Gt, ">") \
+	X(GtEq, ">=") \
+	X(Lt, "<") \
+	X(LtEq, "<=") \
+	X(Eq, "==") \
+	X(Neq, "!=")
+
+#define TOKENS_KEYWORDS \
+	X(If, "if") \
+	X(Else, "else") \
+	X(For, "for") \
+	X(Proc, "proc") \
+
+#define TOKENS \
+	TOKENS_SEP \
+	TOKENS_KEYWORDS \
+	X(Identifier, "Identifier") \
+	X(Integer, "Integer") \
+	X(Real, "Real") \
+	X(String, "String") \
+
+enum Token_Type : u8 {
+	Tk_Unknown = 0,
+
+	#define X(sym, str) Tk_##sym,
+	TOKENS
+	#undef X
+};
+
+constexpr
+String token_type_name(Token_Type t){
+	switch(t){
+		case Tk_Unknown: return "<Unknown>";
+		#define X(sym, str) case Tk_##sym : return str;
+		TOKENS
+		#undef X
+		default: panic("invalid token type");
+	}
+}
+
+struct Token {
+	usize start;
+	u32 length;
+	Token_Type type;
+};
+
+enum Compiler_Error_Type : u16 {
+	CompErr_None = 0,
+};
+
+// Error for the lexing and parsing phase
+struct Syntax_Error {
+	String filepath;
+	usize offset;
+	i32 line;
+	Compiler_Error_Type type;
+
+	union {
+		rune codepoint;
+		Token_Type tk_type;
+	} expected;
+
+	union {
+		rune codepoint;
+		Token_Type tk_type;
+	} got;
+};
+
+struct Lexer {
+	String source;
+	usize current;
+};

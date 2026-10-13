@@ -1,68 +1,7 @@
 #include "base.hpp"
+#include "lexer.hpp"
 
 extern "C" int printf(char const*, ...);
-
-#define TOKENS \
-	X(CurlyOpen, "(") \
-	X(CurlyClose, ")") \
-	X(SquareOpen, "[") \
-	X(SquareClose, "]") \
-	X(ParenOpen, "{") \
-	X(ParenClose, "}") \
-	X(Dot, ".") \
-
-
-enum Token_Type : u8 {
-	Tk_Unknown = 0,
-
-	#define X(sym, str) Tk_##sym,
-	TOKENS
-	#undef X
-};
-
-constexpr
-String token_type_name(Token_Type t){
-	switch(t){
-		case Tk_Unknown: return "<Unknown>";
-		#define X(sym, str) case Tk_##sym : return str;
-		TOKENS
-		#undef X
-		default: panic("invalid token type");
-	}
-}
-
-struct Token {
-	usize start;
-	u32 length;
-	Token_Type type;
-};
-
-enum Compiler_Error_Type : u16 {
-	CompErr_None = 0,
-};
-
-// Error for the lexing and parsing phase
-struct Syntax_Error {
-	String filepath;
-	usize offset;
-	i32 line;
-	Compiler_Error_Type type;
-
-	union {
-		rune codepoint;
-		Token_Type tk_type;
-	} expected;
-
-	union {
-		rune codepoint;
-		Token_Type tk_type;
-	} got;
-};
-
-struct Lexer {
-	String source;
-	usize current;
-};
 
 void entrypoint(){
 }
@@ -84,4 +23,5 @@ int main(){
 	entrypoint();
 }
 
+#include "lexer.cpp"
 #include "base.cpp"
