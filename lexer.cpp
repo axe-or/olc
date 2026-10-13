@@ -186,6 +186,88 @@ static Result<Token, Syntax_Error> lex_number(Lexer* lx){
 	return result_ok(make_token(lx, start, type));
 }
 
+// Validate an escape sequence starting at the backslash: \n \r \t \\ \" or \u{X} with 1 to 6 hex digits
+static Result<void, Syntax_Error> scan_escape(Lexer* lx){
+	usize start = lx->current;
+	lx->current += 1; // Backslash
+
+	switch(peek_byte(lx)){
+		case 'n': case 'r': case 't': case '\\': case '"':
+			lx->current += 1;
+			return result_ok();
+
+		case 'u':
+			lx->current += 1;
+			break;
+
+		default: {
+			Syntax_Error err = make_error(lx, CompErr_Invalid_Escape, start);
+			err.got.codepoint = decode_rune(lx).codepoint;
+			return result_err(err);
+		}
+	}
+
+	if(peek_byte(lx) != '{'){
+		return result_err(make_error(lx, CompErr_Invalid_Codepoint, start));
+	}
+	lx->current += 1;
+
+	rune value = 0;
+	i32 digits = 0;
+	for(i32 v = hex_digit_value(peek_byte(lx)); v >= 0; v = hex_digit_value(peek_byte(lx))){
+		if(digits < 6){
+			value = value * 16 + v;
+		}
+		digits += 1;
+		lx->current += 1;
+	}
+
+	bool is_surrogate = value >= 0xd800 && value <= 0xdfff;
+	if(digits < 1 || digits > 6 || peek_byte(lx) != '}' || value > 0x10ffff || is_surrogate){
+		return result_err(make_error(lx, CompErr_Invalid_Codepoint, start));
+	}
+	lx->current += 1;
+
+	return result_ok();
+}
+
+// Single line, double quoted string. The token spans the quotes, escapes are validated but not decoded
+static Result<Token, Syntax_Error> lex_string(Lexer* lx){
+	usize start = lx->current;
+	lx->current += 1; // Opening quote
+
+	for(;;){
+		if(lx->current >= lx->source.len() || peek_byte(lx) == '\n'){
+			return result_err(make_error(lx, CompErr_Unterminated_String, start));
+		}
+
+		u8 c = peek_byte(lx);
+		if(c == '"'){
+			lx->current += 1;
+			break;
+		}
+
+		if(c == '\\'){
+			auto esc = scan_escape(lx);
+			if(!esc.has_value()){
+				return result_err(esc.unwrap_err());
+			}
+		}
+		else if(c >= 0x80){
+			Rune_Decoded r = decode_rune(lx);
+			if(r.codepoint == RUNE_ERROR && r.size == 1){
+				return result_err(make_error(lx, CompErr_Invalid_UTF8, lx->current));
+			}
+			lx->current += r.size;
+		}
+		else {
+			lx->current += 1;
+		}
+	}
+
+	return result_ok(make_token(lx, start, Tk_String));
+}
+
 // Operators and punctuation, always taking the longest match
 static Result<Token, Syntax_Error> lex_separator(Lexer* lx){
 	usize start = lx->current;
@@ -264,6 +346,9 @@ Result<Token, Syntax_Error> Lexer::next(){
 	}
 	if(is_digit(c)){
 		return lex_number(this);
+	}
+	if(c == '"'){
+		return lex_string(this);
 	}
 
 	return lex_separator(this);
