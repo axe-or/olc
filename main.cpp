@@ -2,17 +2,38 @@
 
 extern "C" int printf(char const*, ...);
 
+enum Token_Type : u8 {
+	Tk_Unknown = 0,
+
+	Tk_CurlyOpen,
+};
+
+enum Compiler_Error_Type : u16 {
+	CompErr_None = 0,
+};
+
+// Error for the lexing and parsing phase
+struct Syntax_Error {
+	String filepath;
+	usize offset;
+	i32 line;
+	Compiler_Error_Type type;
+
+	union {
+		rune codepoint;
+		Token_Type tk_type;
+	} expected;
+
+	union {
+		rune codepoint;
+		Token_Type tk_type;
+	} got;
+};
+
 struct Lexer {
 	String source;
 	usize current;
 };
-
-Allocator heap_allocator;
-
-Allocator temp_allocator;
-
-void entrypoint(){
-}
 
 void init(){
 	// Init heap

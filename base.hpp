@@ -704,6 +704,46 @@ void* mem_zero(void* d, usize n){
 	return memset(d, 0, n);
 }
 
+//// IO interface
+
+enum IO_Error : i32 {
+	IO_Error_None = 0,
+
+	IO_Error_EOF = -1,
+	IO_Error_Closed = -2,
+
+	IO_Error_Other = -4096,
+};
+
+enum IO_Mode : u8 {
+	IO_Query = 0,
+
+	IO_Read  = 1 << 0,
+	IO_Write = 1 << 1,
+};
+
+using IO_Func = i64 (*)(void* impl, IO_Mode mode, Slice<u8> buf);
+
+struct IO_Stream {
+	void* impl_;
+	IO_Func fn_;
+
+	// Read data into buffer, returns written bytes, or a number < 0 on error
+	i64 read(Slice<u8> buf){
+		return fn_(impl_, IO_Read, buf);
+	}
+
+	// Write data from buffer, returns written bytes, or a number < 0 on error
+	i64 write(Slice<u8> buf){
+		return fn_(impl_, IO_Write, buf);
+	}
+
+	// Get supported operations from stream
+	u8 query(){
+		return (u8)fn_(impl_, IO_Query, {});
+	}
+};
+
 //// Allocator
 
 enum Allocator_Mode : u8 {
