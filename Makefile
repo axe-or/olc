@@ -4,7 +4,7 @@ CXX := clang++
 CFLAGS   := $(CFLAGS) -fwrapv -fno-strict-aliasing
 CXXFLAGS := $(CFLAGS) -std=c++20 -fno-exceptions -fno-rtti
 
-WFLAGS := -Wall -Wextra -Werror=return-type
+WFLAGS := -Wall -Wextra -Werror=return-type -Wno-microsoft-exception-spec
 
 SRC := $(wildcard *.cpp *.hpp)
 

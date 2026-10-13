@@ -393,8 +393,8 @@ public:
 	}
 
 	// Result<U, E> with `f(value)` as the value, errors pass through untouched
-	template<Callable_With<F, T> F>
-	Call_Result<F, T> map(F&& f) const {
+	template<Callable_With<T> F>
+	Result<Call_Result<F, T>, E> map(F&& f) const {
 		if(!has_value_){ return result_err(error_); }
 		if constexpr(detail::is_void<Call_Result<F, T>>){
 			f(value_);
@@ -407,7 +407,7 @@ public:
 
 	// Result<T, E2> with `f(error)` as the error, values pass through untouched
 	template<Callable_With<E> F>
-	Result<T, Call_Result<F, E>> map_err(F&& f) const {
+	Result<T, Call_Result<F, E>> map_err(F&& f) const  {
 		if(has_value_){ return result_ok(value_); }
 		return result_err(f(error_));
 	}
