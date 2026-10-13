@@ -27,13 +27,17 @@
 	X(Lt, "<") \
 	X(LtEq, "<=") \
 	X(Eq, "==") \
-	X(Neq, "!=")
+	X(Neq, "!=") \
+	X(Assign, "=")
 
 #define TOKENS_KEYWORDS \
 	X(If, "if") \
 	X(Else, "else") \
 	X(For, "for") \
 	X(Proc, "proc") \
+	X(LogicAnd, "and") \
+	X(LogicOr, "or") \
+	X(LogicNot, "not") \
 
 #define TOKENS \
 	TOKENS_SEP \
@@ -42,6 +46,7 @@
 	X(Integer, "Integer") \
 	X(Real, "Real") \
 	X(String, "String") \
+	X(EndOfFile, "<EOF>") \
 
 enum Token_Type : u8 {
 	Tk_Unknown = 0,
