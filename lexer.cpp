@@ -13,6 +13,16 @@ String Lexer::token_text(Token t){
 	return source.slice(t.start, t.start + t.length);
 }
 
+static constexpr
+bool is_alpha(u8 c){
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+}
+
+static constexpr
+bool is_digit(u8 c){
+	return c >= '0' && c <= '9';
+}
+
 // Byte `ahead` positions past the current one, 0 when out of bounds
 static u8 peek_byte(Lexer* lx, usize ahead = 0){
 	usize pos = lx->current + ahead;
@@ -64,6 +74,37 @@ static void skip_trivia(Lexer* lx){
 			break;
 		}
 	}
+}
+
+// Identifier or keyword, made of ASCII letters, digits, `_` and any non-ASCII codepoint
+static Result<Token, Syntax_Error> lex_identifier(Lexer* lx){
+	usize start = lx->current;
+
+	while(lx->current < lx->source.len()){
+		u8 c = lx->source[lx->current];
+		if(is_alpha(c) || is_digit(c)){
+			lx->current += 1;
+			continue;
+		}
+		if(c < 0x80){
+			break;
+		}
+
+		Rune_Decoded r = decode_rune(lx);
+		if(r.codepoint == RUNE_ERROR && r.size == 1){
+			return result_err(make_error(lx, CompErr_Invalid_UTF8, lx->current));
+		}
+		lx->current += r.size;
+	}
+
+	Token tk = make_token(lx, start, Tk_Identifier);
+	String text = lx->token_text(tk);
+
+	#define X(sym, str) if(text == String(str)){ tk.type = Tk_##sym; }
+	TOKENS_KEYWORDS
+	#undef X
+
+	return result_ok(tk);
 }
 
 // Operators and punctuation, always taking the longest match
@@ -136,6 +177,11 @@ Result<Token, Syntax_Error> Lexer::next(){
 	usize start = current;
 	if(current >= source.len()){
 		return result_ok(make_token(this, start, Tk_EndOfFile));
+	}
+
+	u8 c = source[current];
+	if(is_alpha(c) || c >= 0x80){
+		return lex_identifier(this);
 	}
 
 	return lex_separator(this);
