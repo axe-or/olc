@@ -66,6 +66,70 @@ static void skip_trivia(Lexer* lx){
 	}
 }
 
+// Operators and punctuation, always taking the longest match
+static Result<Token, Syntax_Error> lex_separator(Lexer* lx){
+	usize start = lx->current;
+	u8 c = peek_byte(lx);
+	u8 n = peek_byte(lx, 1);
+
+	Token_Type type = Tk_Unknown;
+	usize len = 1;
+
+	switch(c){
+		case '(': type = Tk_ParenOpen; break;
+		case ')': type = Tk_ParenClose; break;
+		case '[': type = Tk_SquareOpen; break;
+		case ']': type = Tk_SquareClose; break;
+		case '{': type = Tk_CurlyOpen; break;
+		case '}': type = Tk_CurlyClose; break;
+		case ':': type = Tk_Colon; break;
+		case ';': type = Tk_Semicolon; break;
+		case ',': type = Tk_Comma; break;
+		case '.': type = Tk_Dot; break;
+		case '+': type = Tk_Plus; break;
+		case '*': type = Tk_Star; break;
+		case '/': type = Tk_Slash; break;
+		case '&': type = Tk_And; break;
+		case '|': type = Tk_Or; break;
+		case '~': type = Tk_Tilde; break;
+
+		case '-':
+			if(n == '>'){ type = Tk_Arrow; len = 2; }
+			else { type = Tk_Minus; }
+			break;
+
+		case '<':
+			if(n == '<'){ type = Tk_ShLeft; len = 2; }
+			else if(n == '='){ type = Tk_LtEq; len = 2; }
+			else { type = Tk_Lt; }
+			break;
+
+		case '>':
+			if(n == '>'){ type = Tk_ShRight; len = 2; }
+			else if(n == '='){ type = Tk_GtEq; len = 2; }
+			else { type = Tk_Gt; }
+			break;
+
+		case '=':
+			if(n == '='){ type = Tk_Eq; len = 2; }
+			else { type = Tk_Assign; }
+			break;
+
+		case '!':
+			if(n == '='){ type = Tk_Neq; len = 2; }
+			break;
+	}
+
+	if(type == Tk_Unknown){
+		Syntax_Error err = make_error(lx, CompErr_Unexpected_Char, start);
+		err.got.codepoint = decode_rune(lx).codepoint;
+		return result_err(err);
+	}
+
+	lx->current += len;
+	return result_ok(make_token(lx, start, type));
+}
+
 Result<Token, Syntax_Error> Lexer::next(){
 	skip_trivia(this);
 
@@ -74,7 +138,5 @@ Result<Token, Syntax_Error> Lexer::next(){
 		return result_ok(make_token(this, start, Tk_EndOfFile));
 	}
 
-	Syntax_Error err = make_error(this, CompErr_Unexpected_Char, start);
-	err.got.codepoint = decode_rune(this).codepoint;
-	return result_err(err);
+	return lex_separator(this);
 }
