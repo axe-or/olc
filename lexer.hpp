@@ -103,6 +103,19 @@ struct Syntax_Error {
 };
 
 struct Lexer {
+	String filepath;
 	String source;
 	usize current;
+	i32 line; // 1-based line of `current`
+
+	// Produce the next token and advance past it, returns Tk_EndOfFile once the source is exhausted
+	Result<Token, Syntax_Error> next();
+
+	// Produce the next token without advancing
+	Result<Token, Syntax_Error> peek();
+
+	// Source text of a token
+	String token_text(Token t);
 };
+
+Lexer lexer_make(String filepath, String source);
