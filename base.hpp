@@ -289,6 +289,12 @@ concept Callable = requires(F f, Args... args){
 	{ f(args...) } -> Convertible_To<R>;
 };
 
+// `F` can be called with `Args...` irrespective of its return type
+template<typename F, typename ... Args>
+concept Callable_With = requires(F f, Args... args){
+	f(args...);
+};
+
 template<typename F, typename ... Args>
 concept Predicate = Callable<F, bool, Args...>;
 
@@ -387,8 +393,8 @@ public:
 	}
 
 	// Result<U, E> with `f(value)` as the value, errors pass through untouched
-	template<typename F> requires Callable<F, Call_Result<F, T>, T>
-	auto map(F&& f) const -> Result<Call_Result<F, T>, E> {
+	template<Callable_With<F, T> F>
+	Call_Result<F, T> map(F&& f) const {
 		if(!has_value_){ return result_err(error_); }
 		if constexpr(detail::is_void<Call_Result<F, T>>){
 			f(value_);
@@ -400,22 +406,22 @@ public:
 	}
 
 	// Result<T, E2> with `f(error)` as the error, values pass through untouched
-	template<typename F> requires Callable<F, Call_Result<F, E>, E>
-	auto map_err(F&& f) const -> Result<T, Call_Result<F, E>> {
+	template<Callable_With<E> F>
+	Result<T, Call_Result<F, E>> map_err(F&& f) const {
 		if(has_value_){ return result_ok(value_); }
 		return result_err(f(error_));
 	}
 
 	// Chain a fallible operation: `f(value)` returns a Result, only called when there is a value
-	template<typename F> requires Callable<F, Call_Result<F, T>, T>
-	auto and_then(F&& f) const -> Call_Result<F, T> {
+	template<Callable_With<T> F>
+	Call_Result<F, T> and_then(F&& f) {
 		if(!has_value_){ return result_err(error_); }
 		return f(value_);
 	}
 
 	// Recover from an error: `f(error)` returns a Result, only called when there is no value
-	template<typename F> requires Callable<F, Call_Result<F, E>, E>
-	auto or_else(F&& f) const -> Call_Result<F, E> {
+	template<Callable_With<E> F>
+	Call_Result<F, E> or_else(F&& f) {
 		if(has_value_){ return result_ok(value_); }
 		return f(error_);
 	}
