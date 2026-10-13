@@ -23,6 +23,15 @@ bool is_digit(u8 c){
 	return c >= '0' && c <= '9';
 }
 
+// Value of `c` as a hexadecimal digit, or -1 if it is not one
+static constexpr
+i32 hex_digit_value(u8 c){
+	if(c >= '0' && c <= '9'){ return c - '0'; }
+	if(c >= 'a' && c <= 'f'){ return c - 'a' + 10; }
+	if(c >= 'A' && c <= 'F'){ return c - 'A' + 10; }
+	return -1;
+}
+
 // Byte `ahead` positions past the current one, 0 when out of bounds
 static u8 peek_byte(Lexer* lx, usize ahead = 0){
 	usize pos = lx->current + ahead;
@@ -107,6 +116,76 @@ static Result<Token, Syntax_Error> lex_identifier(Lexer* lx){
 	return result_ok(tk);
 }
 
+// Consume a run of digits in `base` with `_` separators, the run must start and end with a digit
+static bool scan_digits(Lexer* lx, i32 base){
+	usize start = lx->current;
+	for(;;){
+		u8 c = peek_byte(lx);
+		i32 v = hex_digit_value(c);
+		if(v >= 0 && v < base){
+			lx->current += 1;
+		}
+		else if(c == '_' && lx->current > start){
+			lx->current += 1;
+		}
+		else {
+			break;
+		}
+	}
+	return lx->current > start && lx->source[lx->current - 1] != '_';
+}
+
+// Integer in base 10, 16 (0x), 2 (0b) or 8 (0o), or a decimal Real with a fraction and/or exponent
+static Result<Token, Syntax_Error> lex_number(Lexer* lx){
+	usize start = lx->current;
+	Token_Type type = Tk_Integer;
+
+	i32 base = 10;
+	if(peek_byte(lx) == '0'){
+		switch(peek_byte(lx, 1)){
+			case 'x': base = 16; break;
+			case 'b': base = 2; break;
+			case 'o': base = 8; break;
+		}
+	}
+
+	bool ok = true;
+	if(base != 10){
+		lx->current += 2;
+		ok = scan_digits(lx, base);
+	}
+	else {
+		ok = scan_digits(lx, 10);
+
+		// No trailing `.`, a fraction needs digits
+		if(ok && peek_byte(lx) == '.'){
+			lx->current += 1;
+			type = Tk_Real;
+			ok = scan_digits(lx, 10);
+		}
+
+		if(ok && (peek_byte(lx) == 'e' || peek_byte(lx) == 'E')){
+			lx->current += 1;
+			type = Tk_Real;
+			if(peek_byte(lx) == '+' || peek_byte(lx) == '-'){
+				lx->current += 1;
+			}
+			ok = scan_digits(lx, 10);
+		}
+	}
+
+	// Reject identifier characters glued to the literal, e.g. `123abc` or `0b102`
+	u8 c = peek_byte(lx);
+	if(is_alpha(c) || is_digit(c) || c >= 0x80){
+		ok = false;
+	}
+
+	if(!ok){
+		return result_err(make_error(lx, CompErr_Malformed_Number, start));
+	}
+	return result_ok(make_token(lx, start, type));
+}
+
 // Operators and punctuation, always taking the longest match
 static Result<Token, Syntax_Error> lex_separator(Lexer* lx){
 	usize start = lx->current;
@@ -182,6 +261,9 @@ Result<Token, Syntax_Error> Lexer::next(){
 	u8 c = source[current];
 	if(is_alpha(c) || c >= 0x80){
 		return lex_identifier(this);
+	}
+	if(is_digit(c)){
+		return lex_number(this);
 	}
 
 	return lex_separator(this);
