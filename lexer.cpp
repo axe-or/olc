@@ -43,7 +43,32 @@ static Syntax_Error make_error(Lexer* lx, Compiler_Error_Type type, usize offset
 	return err;
 }
 
+// Skip whitespace and line comments, counting lines
+static void skip_trivia(Lexer* lx){
+	while(lx->current < lx->source.len()){
+		u8 c = lx->source[lx->current];
+		if(c == '\n'){
+			lx->line += 1;
+			lx->current += 1;
+		}
+		else if(c == ' ' || c == '\t' || c == '\r'){
+			lx->current += 1;
+		}
+		else if(c == '/' && peek_byte(lx, 1) == '/'){
+			// Stop at the newline so it gets counted
+			while(lx->current < lx->source.len() && lx->source[lx->current] != '\n'){
+				lx->current += 1;
+			}
+		}
+		else {
+			break;
+		}
+	}
+}
+
 Result<Token, Syntax_Error> Lexer::next(){
+	skip_trivia(this);
+
 	usize start = current;
 	if(current >= source.len()){
 		return result_ok(make_token(this, start, Tk_EndOfFile));
