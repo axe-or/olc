@@ -659,7 +659,7 @@ public:
 };
 
 // Helper macro to use sized string with printf's "%.*s"
-#define STRF(S) ((int)((S).len)), ((u8 const*)((S).v))
+#define STRF(S) ((int)((S).len())), ((S).raw_data())
 
 // The error unicode codepoint
 constexpr rune RUNE_ERROR = 0xfffd;
