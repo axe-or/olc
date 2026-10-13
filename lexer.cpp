@@ -353,3 +353,8 @@ Result<Token, Syntax_Error> Lexer::next(){
 
 	return lex_separator(this);
 }
+
+Result<Token, Syntax_Error> Lexer::peek(){
+	Lexer tmp = *this;
+	return tmp.next();
+}
