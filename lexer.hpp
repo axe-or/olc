@@ -2,12 +2,12 @@
 #include "base.hpp"
 
 #define TOKENS_SEP \
-	X(CurlyOpen, "(") \
-	X(CurlyClose, ")") \
+	X(ParenOpen, "(") \
+	X(ParenClose, ")") \
 	X(SquareOpen, "[") \
 	X(SquareClose, "]") \
-	X(ParenOpen, "{") \
-	X(ParenClose, "}") \
+	X(CurlyOpen, "{") \
+	X(CurlyClose, "}") \
 	X(Colon, ":") \
 	X(Semicolon, ";") \
 	X(Comma, ",") \
