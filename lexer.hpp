@@ -75,6 +75,13 @@ struct Token {
 
 enum Compiler_Error_Type : u16 {
 	CompErr_None = 0,
+
+	CompErr_Unexpected_Char,     // Character that cannot start a token
+	CompErr_Invalid_UTF8,        // Malformed UTF-8 sequence
+	CompErr_Unterminated_String, // Newline or end of file before closing quote
+	CompErr_Invalid_Escape,      // Unknown escape sequence in string
+	CompErr_Invalid_Codepoint,   // Bad \u{...} escape: empty, too long, out of range or a surrogate
+	CompErr_Malformed_Number,    // Number literal that does not follow the grammar
 };
 
 // Error for the lexing and parsing phase
