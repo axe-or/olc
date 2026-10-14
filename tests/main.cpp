@@ -29,3 +29,4 @@ int main(){
 }
 
 #include "../base.cpp"
+#include "../lexer.cpp"
