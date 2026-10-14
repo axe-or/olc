@@ -1,55 +1,73 @@
 #pragma once
+
 #include "base.hpp"
 
-#define TOKENS_SEP \
+#define TOKENS_OP \
 	X(ParenOpen, "(") \
 	X(ParenClose, ")") \
 	X(SquareOpen, "[") \
 	X(SquareClose, "]") \
 	X(CurlyOpen, "{") \
 	X(CurlyClose, "}") \
-	X(Colon, ":") \
-	X(Semicolon, ";") \
-	X(Comma, ",") \
 	X(Dot, ".") \
-	X(Arrow, "->") \
+	X(Comma, ",") \
+	X(Semicolon, ";") \
+	X(Colon, ":") \
+	X(Question, "?") \
+	X(Caret, "^") \
 	X(Plus, "+") \
 	X(Minus, "-") \
 	X(Star, "*") \
 	X(Slash, "/") \
-	X(And, "&") \
-	X(Or, "|") \
+	X(Mod, "%") \
+	X(ModFloor, "%%") \
+	X(BitAnd, "&") \
+	X(BitOr, "|") \
 	X(Tilde, "~") \
-	X(ShLeft, "<<") \
-	X(ShRight, ">>") \
-	X(Gt, ">") \
-	X(GtEq, ">=") \
-	X(Lt, "<") \
-	X(LtEq, "<=") \
-	X(Eq, "==") \
-	X(Neq, "!=") \
-	X(Assign, "=")
+	X(ShiftLeft, "<<") \
+	X(ShiftRight, ">>") \
+	X(PlusAssign, "+=") \
+	X(MinusAssign, "-=") \
+	X(StarAssign, "*=") \
+	X(SlashAssign, "/=") \
+	X(ModAssign, "%=") \
+	X(ModFloorAssign, "%%=") \
+	X(BitAndAssign, "&=") \
+	X(BitOrAssign, "|=") \
+	X(TildeAssign, "~=") \
+	X(ShiftLeftAssign, "<<=") \
+	X(ShiftRightAssign, ">>=") \
+	X(Assign, "=") \
+	X(Equal, "==") \
+	X(NotEqual, "!=") \
+	X(Less, "<") \
+	X(Greater, ">") \
+	X(LessEqual, "<=") \
+	X(GreaterEqual, ">=") \
+	X(Arrow, "->") \
 
-#define TOKENS_KEYWORDS \
-	X(If, "if") \
-	X(Else, "else") \
-	X(For, "for") \
+#define TOKENS_KEYWORD \
+	X(Var, "var") \
 	X(Proc, "proc") \
-	X(LogicAnd, "and") \
-	X(LogicOr, "or") \
-	X(LogicNot, "not") \
+	X(If, "if") \
+	X(And, "and") \
+	X(Or, "or") \
+	X(Not, "not")
 
 #define TOKENS \
-	TOKENS_SEP \
-	TOKENS_KEYWORDS \
-	X(Identifier, "Identifier") \
-	X(Integer, "Integer") \
-	X(Real, "Real") \
-	X(String, "String") \
-	X(EndOfFile, "<EOF>") \
+	TOKENS_OP \
+	TOKENS_KEYWORD
+
 
 enum Token_Type : u8 {
 	Tk_Unknown = 0,
+
+	Tk_Identifier,
+	Tk_Integer,
+	Tk_Float,
+	Tk_String,
+	Tk_Char,
+	Tk_EndOfFile,
 
 	#define X(sym, str) Tk_##sym,
 	TOKENS
@@ -60,6 +78,12 @@ constexpr
 String token_type_name(Token_Type t){
 	switch(t){
 		case Tk_Unknown: return "<Unknown>";
+		case Tk_Identifier: return "<Identifier>";
+		case Tk_Integer: return "<Integer>";
+		case Tk_Float: return "<Float>";
+		case Tk_String: return "<String>";
+		case Tk_Char: return "<Char>";
+		case Tk_EndOfFile: return "<EOF>";
 		#define X(sym, str) case Tk_##sym : return str;
 		TOKENS
 		#undef X
@@ -76,12 +100,15 @@ struct Token {
 enum Compiler_Error_Type : u16 {
 	CompErr_None = 0,
 
-	CompErr_Unexpected_Char,     // Character that cannot start a token
-	CompErr_Invalid_UTF8,        // Malformed UTF-8 sequence
-	CompErr_Unterminated_String, // Newline or end of file before closing quote
-	CompErr_Invalid_Escape,      // Unknown escape sequence in string
-	CompErr_Invalid_Codepoint,   // Bad \u{...} escape: empty, too long, out of range or a surrogate
-	CompErr_Malformed_Number,    // Number literal that does not follow the grammar
+	CompErr_UnexpectedChar,
+	CompErr_InvalidUtf8,
+	CompErr_UnterminatedString,
+	CompErr_UnterminatedChar,
+	CompErr_UnterminatedComment,
+	CompErr_InvalidEscape,
+	CompErr_InvalidCodepoint,
+	CompErr_MalformedNumber,
+	CompErr_EmptyChar,
 };
 
 // Error for the lexing and parsing phase
@@ -102,20 +129,113 @@ struct Syntax_Error {
 	} got;
 };
 
+static inline
+bool is_digit(u8 c){
+	return c >= '0' && c <= '9';
+}
+
+static inline
+bool is_hex_digit(u8 c){
+	return is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+static inline
+bool is_alpha(u8 c){
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
+static inline
+bool is_ident_char(u8 c){
+	return is_alpha(c) || is_digit(c) || c == '_';
+}
+
+static inline
+bool is_whitespace(u8 c){
+	return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+}
+
+static inline
+rune hex_value(u8 c){
+	if(is_digit(c)){ return c - '0'; }
+	if(c >= 'a' && c <= 'f'){ return c - 'a' + 10; }
+	return c - 'A' + 10;
+}
+
 struct Lexer {
 	String filepath;
 	String source;
 	usize current;
-	i32 line; // 1-based line of `current`
 
-	// Produce the next token and advance past it, returns Tk_EndOfFile once the source is exhausted
+	// Get the next token and advance
 	Result<Token, Syntax_Error> next();
 
-	// Produce the next token without advancing
+	// Get the next token without advancing
 	Result<Token, Syntax_Error> peek();
 
-	// Source text of a token
-	String token_text(Token t);
-};
+	// Byte `ahead` positions from the current one, 0 if past the end
+	u8 peek_char(usize ahead = 0){
+		usize pos = current + ahead;
+		return pos < source.len() ? source[pos] : 0;
+	}
 
-Lexer lexer_make(String filepath, String source);
+	// Source at the current position starts with `s`
+	bool source_prefixed_with(String s){
+		if(current + s.len() > source.len()){ return false; }
+		return source.slice(current, current + s.len()) == s;
+	}
+
+	template<Predicate<u8> F>
+	bool consume_if(F pred){
+		if(current < source.len() && pred(source[current])){
+			current += 1;
+			return true;
+		}
+		return false;
+	}
+
+	bool consume_char(u8 c){
+		return consume_if([c](u8 x){ return x == c; });
+	}
+
+	// Returns how many bytes were consumed
+	template<Predicate<u8> F>
+	usize consume_while(F pred){
+		usize start = current;
+		while(consume_if(pred)){}
+		return current - start;
+	}
+
+	// Consume digits and `_` separators, returns how many actual digits were consumed
+	template<Predicate<u8> F>
+	usize consume_digits(F pred){
+		usize n = 0;
+		for(;;){
+			if(consume_if(pred)){ n += 1; }
+			else if(!consume_char('_')){ break; }
+		}
+		return n;
+	}
+
+	Token make_token(usize start, Token_Type type){
+		return Token{start, u32(current - start), type};
+	}
+
+	// Consume a single UTF-8 encoded codepoint
+	Result<void, Syntax_Error> consume_rune();
+
+	Syntax_Error error_at(usize offset, Compiler_Error_Type type, rune got = 0);
+
+	Result<void, Syntax_Error> skip_whitespace_and_comments();
+
+	// Longest operator matching the current position
+	Result<Token, Syntax_Error> lex_operator();
+
+	Result<Token, Syntax_Error> lex_number();
+
+	// Validate an escape sequence starting at the backslash
+	Result<void, Syntax_Error> lex_escape();
+
+	Result<Token, Syntax_Error> lex_string();
+
+	Result<Token, Syntax_Error> lex_char();
+};

@@ -4,6 +4,9 @@
 
 #define CALLER_LOC std::source_location loc = std::source_location::current()
 
+#define TERM_GREEN(lit) "\e[0;32m" lit "\e[0m"
+#define TERM_RED(lit) "\e[0;31m" lit "\e[0m"
+
 namespace test {
 
 struct Test;
@@ -22,7 +25,7 @@ struct Test {
 		total += 1;
 		if(!predicate){
 			fail += 1;
-			fprintf(stderr, "test fail (%s:%d): %s\n", loc.file_name(), loc.line(), msg);
+			fprintf(stderr, "(%s:%d) ERROR: %s\n", loc.file_name(), loc.line(), msg);
 		}
 		return predicate;
 	}
@@ -35,7 +38,7 @@ template<TestFunc F>
 bool test(char const* name, F&& f){
 	Test t = {.name = name};
 	f(t);
-	printf("[%s] %s ok in %d/%d\n", t.name, t.fail ? "FAIL" : "PASS", t.total - t.fail, t.total);
+	printf("[%s] %s ok in %d/%d\n", t.name, t.fail ? TERM_RED("FAIL") : TERM_GREEN("PASS"), t.total - t.fail, t.total);
 	return t.fail == 0;
 }
 

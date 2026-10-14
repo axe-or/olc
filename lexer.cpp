@@ -1,360 +1,249 @@
 #include "lexer.hpp"
 
-Lexer lexer_make(String filepath, String source){
-	return Lexer{
+// Get the next token and advance
+Result<Token, Syntax_Error> Lexer::next(){
+	err_return(skip_whitespace_and_comments());
+
+	usize start = current;
+	if(current >= source.len()){
+		return result_ok(Token{start, 0, Tk_EndOfFile});
+	}
+
+	u8 c = peek_char();
+	if(is_alpha(c) || c == '_'){
+		consume_while(is_ident_char);
+		String text = source.slice(start, current);
+		Token_Type type = Tk_Identifier;
+		#define X(sym, str) if(text == String(str)){ type = Tk_##sym; }
+		TOKENS_KEYWORD
+		#undef X
+		return result_ok(make_token(start, type));
+	}
+	if(is_digit(c)){ return lex_number(); }
+	if(c == '"'){ return lex_string(); }
+	if(c == '\''){ return lex_char(); }
+	return lex_operator();
+}
+
+// Get the next token without advancing
+Result<Token, Syntax_Error> Lexer::peek(){
+	usize saved = current;
+	auto token = next();
+	current = saved;
+	return token;
+}
+
+// Consume a single UTF-8 encoded codepoint
+Result<void, Syntax_Error> Lexer::consume_rune(){
+	String rest = source.skip(current);
+	Rune_Decoded r = rune_decode((u8 const*)rest.raw_data(), (u32)min(rest.len(), usize(4)));
+	if(r.codepoint == RUNE_ERROR && r.size == 1){
+		return result_err(error_at(current, CompErr_InvalidUtf8, rest[0]));
+	}
+	current += r.size;
+	return result_ok();
+}
+
+Syntax_Error Lexer::error_at(usize offset, Compiler_Error_Type type, rune got){
+	i32 line = 1;
+	for(usize i = 0; i < offset && i < source.len(); i += 1){
+		if(source[i] == '\n'){
+			line += 1;
+		}
+	}
+
+	Syntax_Error err = {
 		.filepath = filepath,
-		.source = source,
-		.current = 0,
-		.line = 1,
-	};
-}
-
-String Lexer::token_text(Token t){
-	return source.slice(t.start, t.start + t.length);
-}
-
-static constexpr
-bool is_alpha(u8 c){
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
-}
-
-static constexpr
-bool is_digit(u8 c){
-	return c >= '0' && c <= '9';
-}
-
-// Value of `c` as a hexadecimal digit, or -1 if it is not one
-static constexpr
-i32 hex_digit_value(u8 c){
-	if(c >= '0' && c <= '9'){ return c - '0'; }
-	if(c >= 'a' && c <= 'f'){ return c - 'a' + 10; }
-	if(c >= 'A' && c <= 'F'){ return c - 'A' + 10; }
-	return -1;
-}
-
-// Byte `ahead` positions past the current one, 0 when out of bounds
-static u8 peek_byte(Lexer* lx, usize ahead = 0){
-	usize pos = lx->current + ahead;
-	return pos < lx->source.len() ? lx->source[pos] : 0;
-}
-
-// Decode the rune at the current position
-static Rune_Decoded decode_rune(Lexer* lx){
-	usize remaining = lx->source.len() - lx->current;
-	return rune_decode((u8 const*)lx->source.raw_data() + lx->current, u32(min(remaining, usize(4))));
-}
-
-// Token spanning from `start` to the current position
-static Token make_token(Lexer* lx, usize start, Token_Type type){
-	return Token{
-		.start = start,
-		.length = u32(lx->current - start),
+		.offset = offset,
+		.line = line,
 		.type = type,
+		.expected = {0},
+		.got = { .codepoint = got },
 	};
-}
-
-static Syntax_Error make_error(Lexer* lx, Compiler_Error_Type type, usize offset){
-	Syntax_Error err = {};
-	err.filepath = lx->filepath;
-	err.offset = offset;
-	err.line = lx->line;
-	err.type = type;
 	return err;
 }
 
-// Skip whitespace and line comments, counting lines
-static void skip_trivia(Lexer* lx){
-	while(lx->current < lx->source.len()){
-		u8 c = lx->source[lx->current];
-		if(c == '\n'){
-			lx->line += 1;
-			lx->current += 1;
+Result<void, Syntax_Error> Lexer::skip_whitespace_and_comments(){
+	for(;;){
+		consume_while(is_whitespace);
+
+		if(source_prefixed_with("//")){
+			consume_while([](u8 c){ return c != '\n'; });
 		}
-		else if(c == ' ' || c == '\t' || c == '\r'){
-			lx->current += 1;
-		}
-		else if(c == '/' && peek_byte(lx, 1) == '/'){
-			// Stop at the newline so it gets counted
-			while(lx->current < lx->source.len() && lx->source[lx->current] != '\n'){
-				lx->current += 1;
-			}
+		else if(source_prefixed_with("/*")){
+			usize start = current;
+			i32 depth = 0;
+			do {
+				if(current >= source.len()){
+					return result_err(error_at(start, CompErr_UnterminatedComment));
+				}
+				if(source_prefixed_with("/*")){
+					depth += 1;
+					current += 2;
+				}
+				else if(source_prefixed_with("*/")){
+					depth -= 1;
+					current += 2;
+				}
+				else {
+					current += 1;
+				}
+			} while(depth > 0);
 		}
 		else {
-			break;
+			return result_ok();
 		}
 	}
 }
 
-// Identifier or keyword, made of ASCII letters, digits, `_` and any non-ASCII codepoint
-static Result<Token, Syntax_Error> lex_identifier(Lexer* lx){
-	usize start = lx->current;
+// Longest operator matching the current position
+Result<Token, Syntax_Error> Lexer::lex_operator(){
+	usize start = current;
+	Token_Type type = Tk_Unknown;
+	usize length = 0;
 
-	while(lx->current < lx->source.len()){
-		u8 c = lx->source[lx->current];
-		if(is_alpha(c) || is_digit(c)){
-			lx->current += 1;
-			continue;
-		}
-		if(c < 0x80){
-			break;
-		}
-
-		Rune_Decoded r = decode_rune(lx);
-		if(r.codepoint == RUNE_ERROR && r.size == 1){
-			return result_err(make_error(lx, CompErr_Invalid_UTF8, lx->current));
-		}
-		lx->current += r.size;
-	}
-
-	Token tk = make_token(lx, start, Tk_Identifier);
-	String text = lx->token_text(tk);
-
-	#define X(sym, str) if(text == String(str)){ tk.type = Tk_##sym; }
-	TOKENS_KEYWORDS
+	#define X(sym, str) if(String(str).len() > length && source_prefixed_with(str)){ type = Tk_##sym; length = String(str).len(); }
+	TOKENS_OP
 	#undef X
 
-	return result_ok(tk);
-}
-
-// Consume a run of digits in `base` with `_` separators, the run must start and end with a digit
-static bool scan_digits(Lexer* lx, i32 base){
-	usize start = lx->current;
-	for(;;){
-		u8 c = peek_byte(lx);
-		i32 v = hex_digit_value(c);
-		if(v >= 0 && v < base){
-			lx->current += 1;
-		}
-		else if(c == '_' && lx->current > start){
-			lx->current += 1;
-		}
-		else {
-			break;
-		}
+	if(type == Tk_Unknown){
+		String rest = source.skip(current);
+		Rune_Decoded r = rune_decode((u8 const*)rest.raw_data(), (u32)min(rest.len(), usize(4)));
+		return result_err(error_at(start, CompErr_UnexpectedChar, r.codepoint));
 	}
-	return lx->current > start && lx->source[lx->current - 1] != '_';
+
+	current += length;
+	return result_ok(make_token(start, type));
 }
 
-// Integer in base 10, 16 (0x), 2 (0b) or 8 (0o), or a decimal Real with a fraction and/or exponent
-static Result<Token, Syntax_Error> lex_number(Lexer* lx){
-	usize start = lx->current;
+Result<Token, Syntax_Error> Lexer::lex_number(){
+	usize start = current;
 	Token_Type type = Tk_Integer;
+	u8 prefix = peek_char(1);
 
-	i32 base = 10;
-	if(peek_byte(lx) == '0'){
-		switch(peek_byte(lx, 1)){
-			case 'x': base = 16; break;
-			case 'b': base = 2; break;
-			case 'o': base = 8; break;
+	if(peek_char() == '0' && (prefix == 'b' || prefix == 'o' || prefix == 'x')){
+		current += 2;
+		usize digits = 0;
+		switch(prefix){
+			case 'b': digits = consume_digits([](u8 c){ return c == '0' || c == '1'; }); break;
+			case 'o': digits = consume_digits([](u8 c){ return c >= '0' && c <= '7'; }); break;
+			case 'x': digits = consume_digits(is_hex_digit); break;
 		}
-	}
-
-	bool ok = true;
-	if(base != 10){
-		lx->current += 2;
-		ok = scan_digits(lx, base);
+		if(digits == 0){
+			return result_err(error_at(start, CompErr_MalformedNumber));
+		}
 	}
 	else {
-		ok = scan_digits(lx, 10);
+		consume_digits(is_digit);
 
-		// No trailing `.`, a fraction needs digits
-		if(ok && peek_byte(lx) == '.'){
-			lx->current += 1;
-			type = Tk_Real;
-			ok = scan_digits(lx, 10);
+		// No trailing dot, `1.` and `1..2` are not floats
+		if(peek_char() == '.' && is_digit(peek_char(1))){
+			current += 1;
+			consume_digits(is_digit);
+			type = Tk_Float;
 		}
 
-		if(ok && (peek_byte(lx) == 'e' || peek_byte(lx) == 'E')){
-			lx->current += 1;
-			type = Tk_Real;
-			if(peek_byte(lx) == '+' || peek_byte(lx) == '-'){
-				lx->current += 1;
+		if(consume_if([](u8 c){ return c == 'e' || c == 'E'; })){
+			consume_if([](u8 c){ return c == '+' || c == '-'; });
+			if(consume_digits(is_digit) == 0){
+				return result_err(error_at(start, CompErr_MalformedNumber));
 			}
-			ok = scan_digits(lx, 10);
+			type = Tk_Float;
 		}
 	}
 
-	// Reject identifier characters glued to the literal, e.g. `123abc` or `0b102`
-	u8 c = peek_byte(lx);
-	if(is_alpha(c) || is_digit(c) || c >= 0x80){
-		ok = false;
+	// Catches things like `0b102` or `12abc`
+	if(is_ident_char(peek_char())){
+		return result_err(error_at(current, CompErr_MalformedNumber, peek_char()));
 	}
 
-	if(!ok){
-		return result_err(make_error(lx, CompErr_Malformed_Number, start));
-	}
-	return result_ok(make_token(lx, start, type));
+	return result_ok(make_token(start, type));
 }
 
-// Validate an escape sequence starting at the backslash: \n \r \t \\ \" or \u{X} with 1 to 6 hex digits
-static Result<void, Syntax_Error> scan_escape(Lexer* lx){
-	usize start = lx->current;
-	lx->current += 1; // Backslash
+// Validate an escape sequence starting at the backslash
+Result<void, Syntax_Error> Lexer::lex_escape(){
+	usize start = current;
+	current += 1;
 
-	switch(peek_byte(lx)){
-		case 'n': case 'r': case 't': case '\\': case '"':
-			lx->current += 1;
-			return result_ok();
-
-		case 'u':
-			lx->current += 1;
-			break;
-
-		default: {
-			Syntax_Error err = make_error(lx, CompErr_Invalid_Escape, start);
-			err.got.codepoint = decode_rune(lx).codepoint;
-			return result_err(err);
-		}
+	u8 c = peek_char();
+	if(consume_if([](u8 c){ return c == 't' || c == 'n' || c == 'r' || c == '"' || c == '\'' || c == '\\'; })){
+		return result_ok();
 	}
 
-	if(peek_byte(lx) != '{'){
-		return result_err(make_error(lx, CompErr_Invalid_Codepoint, start));
-	}
-	lx->current += 1;
-
-	rune value = 0;
-	i32 digits = 0;
-	for(i32 v = hex_digit_value(peek_byte(lx)); v >= 0; v = hex_digit_value(peek_byte(lx))){
-		if(digits < 6){
-			value = value * 16 + v;
-		}
-		digits += 1;
-		lx->current += 1;
+	if(!consume_char('u') || !consume_char('{')){
+		return result_err(error_at(start, CompErr_InvalidEscape, c));
 	}
 
-	bool is_surrogate = value >= 0xd800 && value <= 0xdfff;
-	if(digits < 1 || digits > 6 || peek_byte(lx) != '}' || value > 0x10ffff || is_surrogate){
-		return result_err(make_error(lx, CompErr_Invalid_Codepoint, start));
+	usize digits_start = current;
+	usize digits = consume_while(is_hex_digit);
+	if(digits == 0 || digits > 6 || !consume_char('}')){
+		return result_err(error_at(start, CompErr_InvalidCodepoint));
 	}
-	lx->current += 1;
+
+	rune r = 0;
+	for(usize i = digits_start; i < digits_start + digits; i += 1){
+		r = r * 16 + hex_value(source[i]);
+	}
+	if(r > 0x10ffff || (r >= 0xd800 && r <= 0xdfff)){
+		return result_err(error_at(start, CompErr_InvalidCodepoint, r));
+	}
 
 	return result_ok();
 }
 
-// Single line, double quoted string. The token spans the quotes, escapes are validated but not decoded
-static Result<Token, Syntax_Error> lex_string(Lexer* lx){
-	usize start = lx->current;
-	lx->current += 1; // Opening quote
+Result<Token, Syntax_Error> Lexer::lex_string(){
+	usize start = current;
+	current += 1;
 
 	for(;;){
-		if(lx->current >= lx->source.len() || peek_byte(lx) == '\n'){
-			return result_err(make_error(lx, CompErr_Unterminated_String, start));
+		u8 c = peek_char();
+		if(current >= source.len() || c == '\n' || c == '\r'){
+			return result_err(error_at(start, CompErr_UnterminatedString));
+		}
+		if(c == '\t'){
+			return result_err(error_at(current, CompErr_UnexpectedChar, c));
 		}
 
-		u8 c = peek_byte(lx);
 		if(c == '"'){
-			lx->current += 1;
+			current += 1;
 			break;
 		}
-
-		if(c == '\\'){
-			auto esc = scan_escape(lx);
-			if(!esc.has_value()){
-				return result_err(esc.unwrap_err());
-			}
-		}
-		else if(c >= 0x80){
-			Rune_Decoded r = decode_rune(lx);
-			if(r.codepoint == RUNE_ERROR && r.size == 1){
-				return result_err(make_error(lx, CompErr_Invalid_UTF8, lx->current));
-			}
-			lx->current += r.size;
+		else if(c == '\\'){
+			err_return(lex_escape());
 		}
 		else {
-			lx->current += 1;
+			err_return(consume_rune());
 		}
 	}
 
-	return result_ok(make_token(lx, start, Tk_String));
+	return result_ok(make_token(start, Tk_String));
 }
 
-// Operators and punctuation, always taking the longest match
-static Result<Token, Syntax_Error> lex_separator(Lexer* lx){
-	usize start = lx->current;
-	u8 c = peek_byte(lx);
-	u8 n = peek_byte(lx, 1);
-
-	Token_Type type = Tk_Unknown;
-	usize len = 1;
-
-	switch(c){
-		case '(': type = Tk_ParenOpen; break;
-		case ')': type = Tk_ParenClose; break;
-		case '[': type = Tk_SquareOpen; break;
-		case ']': type = Tk_SquareClose; break;
-		case '{': type = Tk_CurlyOpen; break;
-		case '}': type = Tk_CurlyClose; break;
-		case ':': type = Tk_Colon; break;
-		case ';': type = Tk_Semicolon; break;
-		case ',': type = Tk_Comma; break;
-		case '.': type = Tk_Dot; break;
-		case '+': type = Tk_Plus; break;
-		case '*': type = Tk_Star; break;
-		case '/': type = Tk_Slash; break;
-		case '&': type = Tk_And; break;
-		case '|': type = Tk_Or; break;
-		case '~': type = Tk_Tilde; break;
-
-		case '-':
-			if(n == '>'){ type = Tk_Arrow; len = 2; }
-			else { type = Tk_Minus; }
-			break;
-
-		case '<':
-			if(n == '<'){ type = Tk_ShLeft; len = 2; }
-			else if(n == '='){ type = Tk_LtEq; len = 2; }
-			else { type = Tk_Lt; }
-			break;
-
-		case '>':
-			if(n == '>'){ type = Tk_ShRight; len = 2; }
-			else if(n == '='){ type = Tk_GtEq; len = 2; }
-			else { type = Tk_Gt; }
-			break;
-
-		case '=':
-			if(n == '='){ type = Tk_Eq; len = 2; }
-			else { type = Tk_Assign; }
-			break;
-
-		case '!':
-			if(n == '='){ type = Tk_Neq; len = 2; }
-			break;
-	}
-
-	if(type == Tk_Unknown){
-		Syntax_Error err = make_error(lx, CompErr_Unexpected_Char, start);
-		err.got.codepoint = decode_rune(lx).codepoint;
-		return result_err(err);
-	}
-
-	lx->current += len;
-	return result_ok(make_token(lx, start, type));
-}
-
-Result<Token, Syntax_Error> Lexer::next(){
-	skip_trivia(this);
-
+Result<Token, Syntax_Error> Lexer::lex_char(){
 	usize start = current;
-	if(current >= source.len()){
-		return result_ok(make_token(this, start, Tk_EndOfFile));
+	current += 1;
+
+	u8 c = peek_char();
+	if(current >= source.len() || c == '\n' || c == '\r'){
+		return result_err(error_at(start, CompErr_UnterminatedChar));
+	}
+	if(c == '\t'){
+		return result_err(error_at(current, CompErr_UnexpectedChar, c));
+	}
+	if(c == '\''){
+		return result_err(error_at(start, CompErr_EmptyChar));
 	}
 
-	u8 c = source[current];
-	if(is_alpha(c) || c >= 0x80){
-		return lex_identifier(this);
+	if(c == '\\'){
+		err_return(lex_escape());
 	}
-	if(is_digit(c)){
-		return lex_number(this);
-	}
-	if(c == '"'){
-		return lex_string(this);
+	else {
+		err_return(consume_rune());
 	}
 
-	return lex_separator(this);
-}
+	if(!consume_char('\'')){
+		return result_err(error_at(start, CompErr_UnterminatedChar));
+	}
 
-Result<Token, Syntax_Error> Lexer::peek(){
-	Lexer tmp = *this;
-	return tmp.next();
+	return result_ok(make_token(start, Tk_Char));
 }
