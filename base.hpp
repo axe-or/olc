@@ -65,11 +65,27 @@
 #include <stdalign.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <atomic>
-#include <bit>
-#include <source_location>
+#if !defined(BUILD_PLATFORM_WASI)
+	// The WASI sysroot ships without libc++ headers
+	#include <atomic>
+#endif
 
-using std::bit_cast;
+template<typename To, typename From>
+constexpr To bit_cast(const From& from){
+	return __builtin_bit_cast(To, from);
+}
+
+struct Source_Location {
+	const char* file_;
+	unsigned line_;
+
+	static constexpr Source_Location current(const char* file = __builtin_FILE(), unsigned line = __builtin_LINE()){
+		return Source_Location{file, line};
+	}
+
+	constexpr const char* file_name() const { return file_; }
+	constexpr unsigned line() const { return line_; }
+};
 
 //// Basic types & Utilities
 using i8 = int8_t;
@@ -95,12 +111,12 @@ using isize = ptrdiff_t;
 
 using cstring = const char*;
 
+#if !defined(BUILD_PLATFORM_WASI)
 template<typename T>
 using Atomic = std::atomic<T>;
+#endif
 
-using Source_Location = std::source_location;
-
-#define caller_location std::source_location caller_loc = std::source_location::current()
+#define caller_location Source_Location caller_loc = Source_Location::current()
 
 #define min(x, y) (((x) < (y)) ? (x) : (y))
 
@@ -149,7 +165,7 @@ bool ensure(bool pred, cstring msg, caller_location);
 
 // Same as `ensure` but only when BUILD_DEBUG is defined
 #if defined(BUILD_DEBUG)
-	#define ensure_debug(pred, msg) ensure((pred), (msg), std::source_location::current())
+	#define ensure_debug(pred, msg) ensure((pred), (msg), Source_Location::current())
 #else
 	#define ensure_debug(pred, msg)
 #endif

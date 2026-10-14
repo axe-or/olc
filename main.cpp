@@ -25,15 +25,6 @@ void dump_tokens(String filepath, String source){
 }
 
 void entrypoint(){
-	dump_tokens("<sample>",
-		"proc main() {\n"
-		"\tvar x := 0b1010_1010 + 0o777 - 0xff_ff * 1_000 // comment\n"
-		"\t/* outer /* nested */ still comment */\n"
-		"\tif x >= 1.5 and not (y != 1_0.2_5) or z == 1e10 { y %%= 2.5E-3 }\n"
-		"\tfor i in 1..5 { a[i] &~= x.5 ..< ..= --- -> ^ $ # @ ? ; , << >>= }\n"
-		"\ts := \"hello \\u{fffd} \\\"world\\\" \\t\\n\\\\ caf\xc3\xa9\"\n"
-		"\tc := 'a' + '\\n' + '\\u{1f600}' + '\xc3\xa9'\n"
-		"}\n");
 }
 
 void init(){
