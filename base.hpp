@@ -453,6 +453,10 @@ public:
 		return error_;
 	}
 
+	E unwrap_err_unchecked() const {
+		return error_;
+	}
+
 	void expect(cstring msg, caller_location) const {
 		ensure(has_value_, msg, caller_loc);
 	}
