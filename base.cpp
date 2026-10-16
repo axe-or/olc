@@ -1,12 +1,12 @@
 #include "base.hpp"
 #include "lib/tlsf.h"
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 //// Assertions
 extern "C" {
 	void abort();
-	int printf(cstring, ...);
 }
 
 [[noreturn]]
@@ -20,10 +20,9 @@ void trap(){
 	trap();
 }
 
-
 bool ensure(bool pred, cstring msg, Source_Location loc){
 	if(!pred){
-		printf("(%s:%d) assertion failed: %s\n", loc.file_name(), loc.line(), msg);
+		fprintf(stderr, "(%s:%d) assertion failed: %s\n", loc.file_name(), loc.line(), msg);
 		trap();
 	}
 	return pred;

@@ -14,14 +14,26 @@ Result<Token, Syntax_Error> Lexer::next(){
 		consume_while(is_ident_char);
 		String text = source.slice(start, current);
 		Token_Type type = Tk_Identifier;
+
 		#define X(sym, str) if(text == String(str)){ type = Tk_##sym; }
-		TOKENS_KEYWORD
+			TOKENS_KEYWORD
 		#undef X
+
 		return result_ok(make_token(start, type));
 	}
-	if(is_digit(c)){ return lex_number(); }
-	if(c == '"'){ return lex_string(); }
-	if(c == '\''){ return lex_char(); }
+
+	if(is_digit(c)){
+		return lex_number();
+	}
+
+	if(c == '"'){
+		return lex_string();
+	}
+
+	if(c == '\''){
+		return lex_char();
+	}
+
 	return lex_operator();
 }
 
@@ -40,6 +52,7 @@ Result<void, Syntax_Error> Lexer::consume_rune(){
 	if(r.codepoint == RUNE_ERROR && r.size == 1){
 		return result_err(error_at(current, CompErr_InvalidUtf8, rest[0]));
 	}
+
 	current += r.size;
 	return result_ok();
 }
@@ -60,6 +73,7 @@ Syntax_Error Lexer::error_at(usize offset, Compiler_Error_Type type, rune got){
 		.expected = {0},
 		.got = { .codepoint = got },
 	};
+
 	return err;
 }
 
@@ -103,7 +117,7 @@ Result<Token, Syntax_Error> Lexer::lex_operator(){
 	usize length = 0;
 
 	#define X(sym, str) if(String(str).len() > length && source_prefixed_with(str)){ type = Tk_##sym; length = String(str).len(); }
-	TOKENS_OP
+		TOKENS_OP
 	#undef X
 
 	if(type == Tk_Unknown){

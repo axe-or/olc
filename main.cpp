@@ -1,5 +1,6 @@
 #include "base.hpp"
 #include "lexer.hpp"
+#include <cstdio>
 
 extern "C" int printf(char const*, ...);
 
@@ -24,12 +25,15 @@ void dump_tokens(String filepath, String source){
 	}
 }
 
-void entrypoint(){
+void entrypoint(Slice<String> args, Allocator heap, Allocator temp){
+	for(usize i = 0; i < args.len(); i ++){
+		printf("%.*s\n", STRF(args[i]));
+	}
 }
 
-void init(){
+int main(int argc, char* argv[]){
 	// Init heap
-	constexpr usize heap_size = 16ull * 1024ull * 1024ull;
+	constexpr usize heap_size = 8ull * 1024ull * 1024ull;
 	u8 static heap_data[heap_size] = {0};
 	auto heap = heap_from_buffer({&heap_data[0], heap_size});
 
@@ -37,11 +41,17 @@ void init(){
 	constexpr usize temp_size = 1ull * 1024ull * 1024ull;
 	u8 static temp_data[temp_size] = {0};
 	auto temp = arena_from_buffer({&temp_data[0], temp_size});
-}
 
-int main(){
-	init();
-	entrypoint();
+	constexpr usize max_arg_count = 512;
+	static String args_buf[max_arg_count] = {};
+
+	ensure(usize(argc) < max_arg_count, "too many arguments");
+	for(int i = 0; i < argc; i++){
+		args_buf[i] = argv[i];
+	}
+
+	entrypoint(Slice<String>{&args_buf[0], usize(argc)}, heap.allocator(), temp.allocator());
+	return 0;
 }
 
 #include "base.cpp"

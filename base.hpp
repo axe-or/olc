@@ -65,27 +65,11 @@
 #include <stdalign.h>
 #include <stdint.h>
 #include <stdbool.h>
-#if !defined(BUILD_PLATFORM_WASI)
-	// The WASI sysroot ships without libc++ headers
-	#include <atomic>
-#endif
+#include <atomic>
+#include <bit>
+#include <source_location>
 
-template<typename To, typename From>
-constexpr To bit_cast(const From& from){
-	return __builtin_bit_cast(To, from);
-}
-
-struct Source_Location {
-	const char* file_;
-	unsigned line_;
-
-	static constexpr Source_Location current(const char* file = __builtin_FILE(), unsigned line = __builtin_LINE()){
-		return Source_Location{file, line};
-	}
-
-	constexpr const char* file_name() const { return file_; }
-	constexpr unsigned line() const { return line_; }
-};
+using std::bit_cast;
 
 //// Basic types & Utilities
 using i8 = int8_t;
@@ -111,12 +95,12 @@ using isize = ptrdiff_t;
 
 using cstring = const char*;
 
-#if !defined(BUILD_PLATFORM_WASI)
 template<typename T>
 using Atomic = std::atomic<T>;
-#endif
 
-#define caller_location Source_Location caller_loc = Source_Location::current()
+using Source_Location = std::source_location;
+
+#define caller_location std::source_location caller_loc = std::source_location::current()
 
 #define min(x, y) (((x) < (y)) ? (x) : (y))
 
@@ -165,7 +149,7 @@ bool ensure(bool pred, cstring msg, caller_location);
 
 // Same as `ensure` but only when BUILD_DEBUG is defined
 #if defined(BUILD_DEBUG)
-	#define ensure_debug(pred, msg) ensure((pred), (msg), Source_Location::current())
+	#define ensure_debug(pred, msg) ensure((pred), (msg), std::source_location::current())
 #else
 	#define ensure_debug(pred, msg)
 #endif
@@ -558,8 +542,8 @@ public:
 
 	constexpr Slice(T* p, usize n) : data_{p}, len_{n}{}
 
-	attribute_force_inline constexpr auto len(){ return len_; }
-	attribute_force_inline constexpr auto raw_data(){ return data_; }
+	attr_get(len, len_);
+	attr_get(raw_data, data_);
 };
 
 template<typename T>
@@ -618,6 +602,7 @@ constexpr u64 hash_murmur64(Slice<u8> buf){
 // Length of a C-style string
 static inline constexpr
 usize cstring_len(cstring cs) {
+	if(cs == nullptr){ return 0; }
 	usize n = 0;
 	while(cs[n] != 0){
 		n += 1;
@@ -650,6 +635,10 @@ public:
 	String slice(usize start, usize end){
 		ensure(start <= end && end <= len_, "invalid slice indices");
 		return String{ &data_[start], end - start };
+	}
+
+	Slice<u8> bytes(){
+		return Slice<u8>{(u8*)data_, len_ };
 	}
 
 	u64 hash() const {
@@ -762,6 +751,22 @@ struct IO_Stream {
 	// Write data from buffer, returns written bytes, or a number < 0 on error
 	i64 write(Slice<u8> buf){
 		return fn_(impl_, IO_Write, buf);
+	}
+
+	// Write as string
+	i64 write_string(String s){
+		return fn_(impl_, IO_Write, s.bytes());
+	}
+
+	// Write single byte
+	i64 write_byte(u8 b){
+		return fn_(impl_, IO_Write, {&b, 1});
+	}
+
+	// Write rune encoded
+	i64 write_rune(rune r){
+		auto res = rune_encode(r);
+		return fn_(impl_, IO_Write, Slice<u8>{&res.bytes[0], usize(res.size)});
 	}
 
 	// Get supported operations from stream
@@ -1415,5 +1420,34 @@ auto make_typed_arena(usize capacity, Allocator a){
 		.storage = dynamic_array_make<T>(capacity, a),
 	};
 }
+
+//// String conversions
+
+template<typename T>
+concept Stringer = requires(IO_Stream w, T const& obj){
+	obj.write_string(w);
+};
+
+template<Stringer T>
+i64 write_as_string(IO_Stream w, T const& obj){
+	return obj.wrwrite_string(w);
+}
+
+template<Integer I>
+i64 write_as_string(IO_Stream w, I v){
+	u8 buf[128] = {0};
+	todo();
+}
+
+template<Stringer T>
+i64 write_as_string(IO_Stream w, Slice<T> v){
+	String fmt = "[ ]";
+	w.write(fmt.bytes().take(1));
+	w.write(fmt.bytes().skip(1));
+}
+
+
+// template<Stringer T>
+// String to_string(){}
 
 #undef attr_get
