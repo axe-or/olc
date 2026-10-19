@@ -5,6 +5,8 @@
 #include "rune.cpp"
 #include "dyn_array.cpp"
 #include "map.cpp"
+#include "typed_arena.cpp"
+#include "limits.cpp"
 #include "result.cpp"
 #include "lexer.cpp"
 
@@ -17,6 +19,7 @@ int main(){
 	ok &= test::rune_tests();
 	ok &= test::dyn_array_tests();
 	ok &= test::map_tests();
+	ok &= test::typed_arena_tests();
 	ok &= test::result_tests();
 	ok &= test::lexer_tests();
 

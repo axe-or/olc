@@ -283,6 +283,14 @@ concept Integer = Signed_Integer<T> || Unsigned_Integer<T>;
 template<typename T>
 concept Float = Same_As<T, float> || Same_As<T, double>;
 
+// Largest value representable by `T`
+template<Integer T>
+inline constexpr T max_val = T(~u64(0) >> (64 - sizeof(T) * 8 + (T(-1) < T(0))));
+
+// Smallest value representable by `T`
+template<Integer T>
+inline constexpr T min_val = (T(-1) < T(0)) ? T(-max_val<T> - 1) : T(0);
+
 // `F` can be called with `Args...` and its result converts to `R`
 template<typename F, typename R, typename ... Args>
 concept Callable = requires(F f, Args... args){
@@ -737,41 +745,43 @@ enum IO_Mode : u8 {
 	IO_Write = 1 << 1,
 };
 
-using IO_Func = i64 (*)(void* impl, IO_Mode mode, Slice<u8> buf);
+using IO_Result = Result<i64, IO_Error>;
+
+using IO_Func = IO_Result (*)(void* impl, IO_Mode mode, Slice<u8> buf);
 
 struct IO_Stream {
 	void* impl_;
 	IO_Func fn_;
 
 	// Read data into buffer, returns written bytes, or a number < 0 on error
-	i64 read(Slice<u8> buf){
+	auto read(Slice<u8> buf){
 		return fn_(impl_, IO_Read, buf);
 	}
 
 	// Write data from buffer, returns written bytes, or a number < 0 on error
-	i64 write(Slice<u8> buf){
+	auto write(Slice<u8> buf){
 		return fn_(impl_, IO_Write, buf);
 	}
 
 	// Write as string
-	i64 write_string(String s){
+	auto write_string(String s){
 		return fn_(impl_, IO_Write, s.bytes());
 	}
 
 	// Write single byte
-	i64 write_byte(u8 b){
+	auto write_byte(u8 b){
 		return fn_(impl_, IO_Write, {&b, 1});
 	}
 
 	// Write rune encoded
-	i64 write_rune(rune r){
+	auto write_rune(rune r){
 		auto res = rune_encode(r);
 		return fn_(impl_, IO_Write, Slice<u8>{&res.bytes[0], usize(res.size)});
 	}
 
 	// Get supported operations from stream
 	u8 query(){
-		return (u8)fn_(impl_, IO_Query, {});
+		return (u8)fn_(impl_, IO_Query, {}).unwrap_or(0);
 	}
 };
 
@@ -1376,33 +1386,35 @@ struct Typed_Arena {
 	Dyn_Array<T> storage;
 
 	T& operator[](ID id){
-		ensure(id.v > 0 && id.v < storage.len(), "invalid ID");
-		return storage[id - 1];
+		ensure(id.v > 0 && id.v <= storage.len(), "invalid ID");
+		return storage[id.v - 1];
 	}
 
 	T const& operator[](ID id) const {
-		ensure(id.v > 0 && id.v < storage.len(), "invalid ID");
+		ensure(id.v > 0 && id.v <= storage.len(), "invalid ID");
 		return storage[id.v - 1];
 	}
 
 	T* get(ID id){
-		if(id.v == 0 || id.v >= storage.len()){
+		if(id.v == 0 || id.v > storage.len()){
 			return nullptr;
 		}
 		return &storage[id.v - 1];
 	}
 
 	T const* get(ID id) const {
-		if(id.v == 0 || id.v >= storage.len()){
+		if(id.v == 0 || id.v > storage.len()){
 			return nullptr;
 		}
 		return &storage[id.v - 1];
 	}
 
 	ID put(T const& val){
+		// Every ID is taken, the next one would wrap around
+		if(storage.len() >= max_val<I>){ return ID{0}; }
 		bool ok = storage.append(val);
-		if(!ok){ return 0; }
-		return ID{storage.len()};
+		if(!ok){ return ID{0}; }
+		return ID{I(storage.len())};
 	}
 
 	void reset(){
@@ -1420,34 +1432,5 @@ auto make_typed_arena(usize capacity, Allocator a){
 		.storage = dynamic_array_make<T>(capacity, a),
 	};
 }
-
-//// String conversions
-
-template<typename T>
-concept Stringer = requires(IO_Stream w, T const& obj){
-	obj.write_string(w);
-};
-
-template<Stringer T>
-i64 write_as_string(IO_Stream w, T const& obj){
-	return obj.wrwrite_string(w);
-}
-
-template<Integer I>
-i64 write_as_string(IO_Stream w, I v){
-	u8 buf[128] = {0};
-	todo();
-}
-
-template<Stringer T>
-i64 write_as_string(IO_Stream w, Slice<T> v){
-	String fmt = "[ ]";
-	w.write(fmt.bytes().take(1));
-	w.write(fmt.bytes().skip(1));
-}
-
-
-// template<Stringer T>
-// String to_string(){}
 
 #undef attr_get

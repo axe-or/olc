@@ -1,1 +1,0 @@
-- Define grow() and shrink() semantics
