@@ -13,7 +13,7 @@ SRC := $(wildcard *.cpp *.hpp)
 .PHONY: clean run test wasm
 
 run: olc.exe
-	./olc.exe
+	@./olc.exe
 
 tlsf.o: lib/tlsf.c lib/tlsf.h
 	$(CC) $(CFLAGS) -O2 -c lib/tlsf.c -o tlsf.o

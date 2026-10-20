@@ -10,7 +10,7 @@ static Lexer lexer_make(String source){
 
 // `source` produces exactly the `expected` token types followed by EOF
 template<usize N>
-static bool lexes_to(String source, Token_Type const (&expected)[N]){
+static bool lexes_to(String source, Token_Kind const (&expected)[N]){
 	Lexer lexer = lexer_make(source);
 	for(usize i = 0; i < N; i += 1){
 		auto res = lexer.next();
@@ -28,7 +28,7 @@ static bool lexes_nothing(String source){
 }
 
 // All of `source` is a single token of `type`
-static bool lexes_one(String source, Token_Type type){
+static bool lexes_one(String source, Token_Kind type){
 	Lexer lexer = lexer_make(source);
 	auto res = lexer.next();
 	if(!res.has_value()){ return false; }

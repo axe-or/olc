@@ -13,7 +13,7 @@ Result<Token, Syntax_Error> Lexer::next(){
 	if(is_alpha(c) || c == '_'){
 		consume_while(is_ident_char);
 		String text = source.slice(start, current);
-		Token_Type type = Tk_Identifier;
+		Token_Kind type = Tk_Identifier;
 
 		#define X(sym, str) if(text == String(str)){ type = Tk_##sym; }
 			TOKENS_KEYWORD
@@ -113,7 +113,7 @@ Result<void, Syntax_Error> Lexer::skip_whitespace_and_comments(){
 // Longest operator matching the current position
 Result<Token, Syntax_Error> Lexer::lex_operator(){
 	usize start = current;
-	Token_Type type = Tk_Unknown;
+	Token_Kind type = Tk_Unknown;
 	usize length = 0;
 
 	#define X(sym, str) if(String(str).len() > length && source_prefixed_with(str)){ type = Tk_##sym; length = String(str).len(); }
@@ -132,7 +132,7 @@ Result<Token, Syntax_Error> Lexer::lex_operator(){
 
 Result<Token, Syntax_Error> Lexer::lex_number(){
 	usize start = current;
-	Token_Type type = Tk_Integer;
+	Token_Kind type = Tk_Integer;
 	u8 prefix = peek_char(1);
 
 	if(peek_char() == '0' && (prefix == 'b' || prefix == 'o' || prefix == 'x')){
@@ -261,3 +261,4 @@ Result<Token, Syntax_Error> Lexer::lex_char(){
 
 	return result_ok(make_token(start, Tk_Char));
 }
+

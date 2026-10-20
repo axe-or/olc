@@ -12,7 +12,7 @@ bool typed_arena_tests(){
 	ok &= test("typed_arena: put and get", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer({storage, sizeof(storage)});
-		auto ta = make_typed_arena<i32>(4, arena.allocator());
+		auto ta = typed_arena_make<i32>(4, arena.allocator());
 		check(ta.storage.len() == 0 && ta.storage.cap() == 4);
 
 		auto a = ta.put(10);
@@ -40,7 +40,7 @@ bool typed_arena_tests(){
 	ok &= test("typed_arena: invalid IDs", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer({storage, sizeof(storage)});
-		auto ta = make_typed_arena<i32>(0, arena.allocator());
+		auto ta = typed_arena_make<i32>(0, arena.allocator());
 		using ID = decltype(ta)::ID;
 
 		// Zero is never a valid ID, even on an empty arena
@@ -61,7 +61,7 @@ bool typed_arena_tests(){
 	ok &= test("typed_arena: growth", [](Test& t){
 		alignas(16) static u8 storage[256 * 1024];
 		Heap_Allocator heap = heap_from_buffer({storage, sizeof(storage)});
-		auto ta = make_typed_arena<u64>(0, heap.allocator());
+		auto ta = typed_arena_make<u64>(0, heap.allocator());
 		using ID = decltype(ta)::ID;
 
 		ID ids[1000];
@@ -82,7 +82,7 @@ bool typed_arena_tests(){
 	ok &= test("typed_arena: put failure", [](Test& t){
 		alignas(16) u8 storage[2 * sizeof(i64)];
 		Arena arena = arena_from_buffer({storage, sizeof(storage)});
-		auto ta = make_typed_arena<i64>(2, arena.allocator());
+		auto ta = typed_arena_make<i64>(2, arena.allocator());
 
 		check(!!ta.put(1));
 		check(!!ta.put(2));
@@ -95,7 +95,7 @@ bool typed_arena_tests(){
 	ok &= test("typed_arena: reset", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer({storage, sizeof(storage)});
-		auto ta = make_typed_arena<i32>(4, arena.allocator());
+		auto ta = typed_arena_make<i32>(4, arena.allocator());
 
 		auto a = ta.put(1);
 		ta.put(2);
@@ -111,7 +111,7 @@ bool typed_arena_tests(){
 	ok &= test("typed_arena: small ID type", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer({storage, sizeof(storage)});
-		auto ta = make_typed_arena<i32, u16>(0, arena.allocator());
+		auto ta = typed_arena_make<i32, u16>(0, arena.allocator());
 
 		auto a = ta.put(5);
 		auto b = ta.put(6);
@@ -121,7 +121,7 @@ bool typed_arena_tests(){
 	ok &= test("typed_arena: ID overflow", [](Test& t){
 		alignas(16) static u8 storage[64 * 1024];
 		Arena arena = arena_from_buffer({storage, sizeof(storage)});
-		auto ta = make_typed_arena<i32, u8>(0, arena.allocator());
+		auto ta = typed_arena_make<i32, u8>(0, arena.allocator());
 
 		bool all_put = true;
 		for(i32 i = 0; i < max_val<u8>; i++){ all_put = all_put && ta.put(i).v == u8(i + 1); }
@@ -143,7 +143,7 @@ bool typed_arena_tests(){
 		Arena arena = arena_from_buffer({storage, sizeof(storage)});
 
 		struct Node { String name; i32 value; };
-		auto ta = make_typed_arena<Node>(0, arena.allocator());
+		auto ta = typed_arena_make<Node>(0, arena.allocator());
 
 		auto a = ta.put(Node{"alpha", 1});
 		auto b = ta.put(Node{"beta", 2});

@@ -1410,8 +1410,9 @@ struct Typed_Arena {
 	}
 
 	ID put(T const& val){
-		// Every ID is taken, the next one would wrap around
+		// Possible overflow
 		if(storage.len() >= max_val<I>){ return ID{0}; }
+
 		bool ok = storage.append(val);
 		if(!ok){ return ID{0}; }
 		return ID{I(storage.len())};
@@ -1427,7 +1428,7 @@ struct Typed_Arena {
 };
 
 template<typename T, Unsigned_Integer I = u32>
-auto make_typed_arena(usize capacity, Allocator a){
+auto typed_arena_make(usize capacity, Allocator a){
 	return Typed_Arena<T, I> {
 		.storage = dynamic_array_make<T>(capacity, a),
 	};

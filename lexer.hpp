@@ -59,7 +59,7 @@
 	TOKENS_KEYWORD
 
 
-enum Token_Type : u8 {
+enum Token_Kind : u8 {
 	Tk_Unknown = 0,
 
 	Tk_Identifier,
@@ -75,7 +75,7 @@ enum Token_Type : u8 {
 };
 
 constexpr
-String token_type_name(Token_Type t){
+String token_kind_name(Token_Kind t){
 	switch(t){
 		case Tk_Unknown: return "<Unknown>";
 		case Tk_Identifier: return "<Identifier>";
@@ -94,7 +94,7 @@ String token_type_name(Token_Type t){
 struct Token {
 	usize start;
 	u32 length;
-	Token_Type type;
+	Token_Kind type;
 };
 
 enum Compiler_Error_Type : u16 {
@@ -120,12 +120,12 @@ struct Syntax_Error {
 
 	union {
 		rune codepoint;
-		Token_Type tk_type;
+		Token_Kind tk_type;
 	} expected;
 
 	union {
 		rune codepoint;
-		Token_Type tk_type;
+		Token_Kind tk_type;
 	} got;
 };
 
@@ -216,7 +216,7 @@ struct Lexer {
 		return n;
 	}
 
-	Token make_token(usize start, Token_Type type){
+	Token make_token(usize start, Token_Kind type){
 		return Token{start, u32(current - start), type};
 	}
 

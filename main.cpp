@@ -17,13 +17,58 @@ void dump_tokens(String filepath, String source){
 		}
 
 		Token token = res.unwrap();
-		String name = token_type_name(token.type);
+		String name = token_kind_name(token.type);
 		String text = source.slice(token.start, token.start + token.length);
 		printf("%-14.*s %5zu %3u  %.*s\n",
 			(int)name.len(), name.raw_data(), token.start, token.length, (int)text.len(), text.raw_data());
 		if(token.type == Tk_EndOfFile){ return; }
 	}
 }
+
+struct Node;
+
+using Node_ID = Typed_Arena_ID<Node, u32>;
+
+enum Node_Kind : u8 {
+	Node_Unknown,
+
+	Node_Integer,
+	Node_Real,
+	Node_String,
+
+	Node_Unary,
+	Node_Binary,
+};
+
+struct Expr_Binary {};
+
+struct Node {
+	Node_ID parent;
+	union {
+		i64 integer_value;
+		f64 real_value;
+		String string_value;
+
+		struct {
+			Node_ID operand;
+			Token_Kind op;
+		} unary_expr;
+
+		struct {
+			Node_ID left;
+			Node_ID right;
+			Token_Kind op;
+		} binary_expr;
+	};
+
+	Node_Kind kind;
+};
+
+struct Parser {
+	Lexer lexer;
+};
+
+Parser parser_make();
 
 void entrypoint(Slice<String> args, Allocator heap, Allocator temp){
 	for(usize i = 0; i < args.len(); i ++){
@@ -33,12 +78,12 @@ void entrypoint(Slice<String> args, Allocator heap, Allocator temp){
 
 int main(int argc, char* argv[]){
 	// Init heap
-	constexpr usize heap_size = 8ull * 1024ull * 1024ull;
+	constexpr usize heap_size = 32ull * 1024ull * 1024ull;
 	u8 static heap_data[heap_size] = {0};
 	auto heap = heap_from_buffer({&heap_data[0], heap_size});
 
 	// Init temp
-	constexpr usize temp_size = 1ull * 1024ull * 1024ull;
+	constexpr usize temp_size = 8ull * 1024ull * 1024ull;
 	u8 static temp_data[temp_size] = {0};
 	auto temp = arena_from_buffer({&temp_data[0], temp_size});
 
