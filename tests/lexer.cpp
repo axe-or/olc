@@ -1,6 +1,6 @@
 #include "testing.hpp"
 #include "../base.hpp"
-#include "../lexer.hpp"
+#include "../compiler.hpp"
 
 namespace test {
 

@@ -16,7 +16,7 @@
 ## Steps
 
 **Major step 1: Token table and errors**
-1. Move token/error/lexer declarations from `main.cpp` into `lexer.hpp`, add `#include "lexer.hpp"` / `#include "lexer.cpp"` (empty stub) to `main.cpp`. Commit `Move tokens to lexer header`.
+1. Move token/error/lexer declarations from `main.cpp` into `lexer.hpp`, add `#include "compiler.hpp"` / `#include "lexer.cpp"` (empty stub) to `main.cpp`. Commit `Move tokens to lexer header`.
 2. Swap the Paren/Curly names. Commit `Fix paren and curly token names`.
 3. Add `Assign`, `LogicAnd/Or/Not` keywords, `EndOfFile`. Commit `Add assign, logic keywords and EOF tokens`.
 4. Add the `Compiler_Error_Type` entries. Commit `Lexer error types`.
@@ -44,10 +44,10 @@ The sections below are the design details for these steps.
 Move the lexer out of `main.cpp` so tests can include it (tests/main.cpp has its own `main`):
 - **New `lexer.hpp`**: the token X-macros, `Token_Type`, `token_type_name`, `Token`, `Compiler_Error_Type`, `Syntax_Error`, `Lexer` declaration.
 - **New `lexer.cpp`**: the implementation.
-- **`main.cpp`**: `#include "lexer.hpp"` at top, `#include "lexer.cpp"` next to `base.cpp` at the bottom (same unity-build style). `entrypoint()` lexes a sample string and prints the tokens.
+- **`main.cpp`**: `#include "compiler.hpp"` at top, `#include "lexer.cpp"` next to `base.cpp` at the bottom (same unity-build style). `entrypoint()` lexes a sample string and prints the tokens.
 - **`Makefile`**: `lexer.*` is already picked up by `$(wildcard *.cpp *.hpp)`; no change needed.
 
-## Token table changes (lexer.hpp)
+## Token table changes (compiler.hpp)
 - Fix the swapped names: `CurlyOpen/Close` currently map to `(`/`)` and `ParenOpen/Close` to `{`/`}`. Swap so `Paren` = `()`, `Curly` = `{}`.
 - Add `X(Assign, "=")` to `TOKENS_SEP`.
 - Add `X(LogicAnd, "and") X(LogicOr, "or") X(LogicNot, "not")` to `TOKENS_KEYWORDS` (prefixed to avoid clashing with existing bitwise `Tk_And`/`Tk_Or`).

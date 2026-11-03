@@ -2,6 +2,8 @@
 
 #include "base.hpp"
 
+//// Lexing
+
 #define TOKENS_OP \
 	X(ParenOpen, "(") \
 	X(ParenClose, ")") \
@@ -109,6 +111,9 @@ enum Compiler_Error_Type : u16 {
 	CompErr_InvalidCodepoint,
 	CompErr_MalformedNumber,
 	CompErr_EmptyChar,
+
+	CompErr_UnexpectedToken,
+	CompErr_CardinalityMismatch,
 };
 
 // Error for the lexing and parsing phase
@@ -239,3 +244,48 @@ struct Lexer {
 
 	Result<Token, Syntax_Error> lex_char();
 };
+
+//// Parsing
+struct Node;
+
+using Node_ID = Typed_Arena_ID<Node, u32>;
+
+enum Node_Kind : u8 {
+	Node_Unknown,
+
+	Node_Integer,
+	Node_Real,
+	Node_String,
+
+	Node_Unary,
+	Node_Binary,
+};
+
+struct Node {
+	Node_ID parent;
+
+	union {
+		i64 integer_value;
+		f64 real_value;
+		String string_value;
+
+		struct {
+			Node_ID operand;
+			Token_Kind op;
+		} unary_expr;
+
+		struct {
+			Node_ID left;
+			Node_ID right;
+			Token_Kind op;
+		} binary_expr;
+	};
+
+	Node_Kind kind;
+};
+
+struct AST {
+	Typed_Arena<Node, u32> nodes;
+};
+
+Result<AST, Syntax_Error> parse(Lexer lex);

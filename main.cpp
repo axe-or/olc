@@ -1,5 +1,5 @@
 #include "base.hpp"
-#include "lexer.hpp"
+#include "compiler.hpp"
 #include <cstdio>
 
 extern "C" int printf(char const*, ...);
@@ -24,51 +24,6 @@ void dump_tokens(String filepath, String source){
 		if(token.type == Tk_EndOfFile){ return; }
 	}
 }
-
-struct Node;
-
-using Node_ID = Typed_Arena_ID<Node, u32>;
-
-enum Node_Kind : u8 {
-	Node_Unknown,
-
-	Node_Integer,
-	Node_Real,
-	Node_String,
-
-	Node_Unary,
-	Node_Binary,
-};
-
-struct Expr_Binary {};
-
-struct Node {
-	Node_ID parent;
-	union {
-		i64 integer_value;
-		f64 real_value;
-		String string_value;
-
-		struct {
-			Node_ID operand;
-			Token_Kind op;
-		} unary_expr;
-
-		struct {
-			Node_ID left;
-			Node_ID right;
-			Token_Kind op;
-		} binary_expr;
-	};
-
-	Node_Kind kind;
-};
-
-struct Parser {
-	Lexer lexer;
-};
-
-Parser parser_make();
 
 void entrypoint(Slice<String> args, Allocator heap, Allocator temp){
 	for(usize i = 0; i < args.len(); i ++){
@@ -101,3 +56,4 @@ int main(int argc, char* argv[]){
 
 #include "base.cpp"
 #include "lexer.cpp"
+#include "parser.cpp"

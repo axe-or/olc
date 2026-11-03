@@ -1,4 +1,4 @@
-#include "lexer.hpp"
+#include "compiler.hpp"
 
 // Get the next token and advance
 Result<Token, Syntax_Error> Lexer::next(){
@@ -261,4 +261,3 @@ Result<Token, Syntax_Error> Lexer::lex_char(){
 
 	return result_ok(make_token(start, Tk_Char));
 }
-
