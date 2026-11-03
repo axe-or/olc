@@ -246,7 +246,8 @@ constexpr T&& forward(Remove_Reference<T>&& value) noexcept {
 template<typename From, typename To>
 concept Convertible_To = (detail::is_void<From> && detail::is_void<To>) || requires {
 	// Functions cannot return arrays or functions so they must be rejected before
-	// `accept_convert` parameter adjustment implicitly turns them into pointers.
+	// `accept_convert` parameter adjustment implicitly turns them into pointers due to C's retarded
+	// pointer decay rules.
 	static_cast<To (*)()>(nullptr);
 	detail::accept_convert<To>(detail::declval<From>(0));
 	static_cast<To>(detail::declval<From>(0));
@@ -1383,13 +1384,17 @@ auto map_make(usize capacity, Allocator a){
 
 //// Typed arena
 
+#define COMPARISONS X(<) X(<=) X(>) X(>=) X(==) X(!=)
+
 template<typename T, Unsigned_Integer I = u32>
 struct Typed_Arena_ID {
 	I v;
 
 	constexpr bool operator!(){ return !v; }
 
-	constexpr int operator<=>(Typed_Arena_ID<T, I> const&) const = default;
+	#define X(OP) attribute_force_inline constexpr bool operator OP (Typed_Arena_ID<T, I> & o) const { return v OP o.v; }
+	COMPARISONS
+	#undef X
 };
 
 template<typename T, Unsigned_Integer I = u32>
