@@ -167,6 +167,18 @@ inline void* operator new(usize, New_Tag, void* storage) noexcept {
 	return storage;
 }
 
+//// Defer
+
+namespace detail {
+	template<typename F>
+	struct Deferred_Call {
+		F f;
+		constexpr Deferred_Call(F&& f) : f{static_cast<F&&>(f)}{}
+		constexpr ~Deferred_Call(){ f(); }
+	};
+}
+#define defer(body) auto ident_counter(_defer_) = ::detail::Deferred_Call{[&](){ body ; }}
+
 //// Type traits
 
 namespace detail {
@@ -1377,7 +1389,7 @@ struct Typed_Arena_ID {
 
 	constexpr bool operator!(){ return !v; }
 
-	constexpr auto operator<=>(Typed_Arena_ID<T, I> const&) const = default;
+	constexpr int operator<=>(Typed_Arena_ID<T, I> const&) const = default;
 };
 
 template<typename T, Unsigned_Integer I = u32>
