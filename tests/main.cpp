@@ -8,6 +8,7 @@
 #include "typed_arena.cpp"
 #include "limits.cpp"
 #include "result.cpp"
+#include "option.cpp"
 #include "lexer.cpp"
 
 int main(){
@@ -21,6 +22,7 @@ int main(){
 	ok &= test::map_tests();
 	ok &= test::typed_arena_tests();
 	ok &= test::result_tests();
+	ok &= test::option_tests();
 	ok &= test::lexer_tests();
 
 	if(!ok){

@@ -1,11 +1,80 @@
+#include "base.hpp"
 #include "compiler.hpp"
 
 using Parser_Result = Result<Node_ID, Syntax_Error>;
+
+
+static inline
+constexpr Option<int> prefix_binding_power(Token_Kind k){
+	switch(k){
+	case Tk_Minus:
+    case Tk_Tilde:
+    case Tk_Not:
+    case Tk_Plus:
+    	return option_some(100);
+
+    default:
+    	return option_none();
+    }
+}
+
+// Precedence    Operator
+//      70          *   /   %   %%   &  <<   >>
+//      60          +   -   |   ~
+//      50          ==  !=  <   >    <=  >=
+//      40          and
+//      30          or
+
+static inline
+constexpr Option<Pair<int>> infix_binding_power(Token_Kind k){
+	[[maybe_unused]]
+	constexpr auto left_assoc = [](int prec) {
+		return option_some(Pair<int>{prec, prec + 1});
+	};
+
+	[[maybe_unused]]
+	constexpr auto right_assoc = [](int prec) {
+		return option_some(Pair<int>{prec + 1, prec});
+	};
+
+	switch(k){
+	case Tk_Star:
+	case Tk_Slash:
+	case Tk_Mod:
+	case Tk_ModFloor:
+	case Tk_BitAnd:
+	case Tk_ShiftLeft:
+	case Tk_ShiftRight:
+		return left_assoc(70);
+
+	case Tk_Plus:
+	case Tk_Minus:
+	case Tk_BitOr:
+	case Tk_Tilde:
+		return left_assoc(60);
+
+	case Tk_Equal:
+	case Tk_NotEqual:
+	case Tk_Less:
+	case Tk_Greater:
+	case Tk_LessEqual:
+	case Tk_GreaterEqual:
+		return left_assoc(50);
+
+	case Tk_And:
+		return left_assoc(40);
+
+	case Tk_Or:
+		return left_assoc(30);
+
+	default:
+		return option_none();
+    }
+}
 
 struct Parser {
 	Lexer lexer;
 	AST* ast;
 
 	Parser_Result parse_file();
-
 };

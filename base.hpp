@@ -519,11 +519,101 @@ public:
 	}
 };
 
-// Return the error of `res` from the enclosing function if it has one, `res` is
+// Return the error of `res` from the enclosing function if it has one, `res` i}s
 // evaluated once. The enclosing function must return a Result whose error type
 #define err_return(res) do { \
 	auto const& err_return_res_ = (res); \
 	if(!err_return_res_.has_value()){ return result_err(err_return_res_.unwrap_err_unchecked()); } \
+} while(0)
+
+//// Option
+
+// Tags produced by option_some() / option_none(), they convert to any Option with
+// compatible types, same implicit conversion trick as Result
+template<typename T>
+struct Option_Some { T value; };
+
+struct Option_None {};
+
+template<typename T>
+constexpr Option_Some<T> option_some(T value){ return {value}; }
+
+constexpr Option_None option_none(){ return {}; }
+
+// Either a value or nothing
+template<typename T>
+struct [[nodiscard]] Option {
+private:
+	bool has_value_ = false;
+	union {
+		T value_ = {};
+	};
+
+public:
+	constexpr Option() = default;
+
+	template<Convertible_To<T> U>
+	constexpr Option(Option_Some<U> some) : has_value_{true}, value_(some.value){}
+
+	constexpr Option(Option_None) : has_value_{false}{}
+
+	attribute_force_inline constexpr bool has_value() const { return has_value_; }
+
+	T unwrap(caller_location) const {
+		if(!has_value_){
+			panic("unwrap() on empty option", caller_loc);
+		}
+		return value_;
+	}
+
+	T unwrap_unchecked() const {
+		return value_;
+	}
+
+	T expect(cstring msg, caller_location) const {
+		if(!has_value_){
+			panic(msg, caller_loc);
+		}
+		return value_;
+	}
+
+	T unwrap_or(T fallback) const {
+		return has_value_ ? value_ : fallback;
+	}
+
+	// `f()` computes the fallback, only called when there is no value
+	template<Callable<T> F>
+	T unwrap_or_else(F&& f) const {
+		return has_value_ ? value_ : f();
+	}
+
+	// Option<U> with `f(value)` as the value, nothing passes through untouched
+	template<Callable_With<T> F> requires (!detail::is_void<Call_Result<F, T>>)
+	Option<Call_Result<F, T>> map(F&& f) const {
+		if(!has_value_){ return option_none(); }
+		return option_some(f(value_));
+	}
+
+	// Chain an operation that may produce nothing: `f(value)` returns an Option, only called when there is a value
+	template<Callable_With<T> F>
+	Call_Result<F, T> and_then(F&& f) const {
+		if(!has_value_){ return option_none(); }
+		return f(value_);
+	}
+
+	// Recover from nothing: `f()` returns an Option, only called when there is no value
+	template<Callable<Option<T>> F>
+	Option<T> or_else(F&& f) const {
+		if(has_value_){ return option_some(value_); }
+		return f();
+	}
+};
+
+// Return nothing from the enclosing function if `opt` has no value, `opt` is
+// evaluated once. The enclosing function must return an Option.
+#define none_return(opt) do { \
+	auto const& none_return_opt_ = (opt); \
+	if(!none_return_opt_.has_value()){ return option_none(); } \
 } while(0)
 
 //// Slice
