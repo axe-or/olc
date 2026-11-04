@@ -954,12 +954,12 @@ struct Allocator {
 
 };
 
-	template<typename T, typename ...Args>
-	T* make(Args&& ...args){
-		void* storage = alloc(layout_of<T>());
-		if(storage == nullptr){ return nullptr; }
-		return new (New_Tag{}, storage) T(::forward<Args>(args)...);
-	}
+template<typename T, typename ...Args>
+T* make(Allocator a, Args&& ...args){
+	void* storage = a.alloc(layout_of<T>());
+	if(storage == nullptr){ return nullptr; }
+	return new (New_Tag{}, storage) T(::forward<Args>(args)...);
+}
 
 template<typename T, typename ...Args>
 Slice<T> slice_make(Allocator a, usize count, Args&& ...args){

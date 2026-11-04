@@ -285,7 +285,58 @@ struct Node {
 };
 
 struct AST {
+	Node_ID root;
 	Typed_Arena<Node, u32> nodes;
+
+	Node_ID new_integer(Node_ID parent, i64 val){
+		return nodes.put(Node{
+			.parent = parent,
+			.integer_value = val,
+			.kind = Node_Integer,
+		});
+	}
+
+	Node_ID new_real(Node_ID parent, f64 val){
+		return nodes.put(Node{
+			.parent = parent,
+			.real_value = val,
+			.kind = Node_Real,
+		});
+	}
+
+	Node_ID new_string(Node_ID parent, String val){
+		return nodes.put(Node{
+			.parent = parent,
+			.string_value = val,
+			.kind = Node_String,
+		});
+	}
+
+	Node_ID new_unary(Node_ID parent, Token_Kind op, Node_ID operand){
+		return nodes.put(Node{
+			.parent = parent,
+			.unary_expr = {.operand = operand, .op = op},
+			.kind = Node_Unary,
+		});
+	}
+
+	Node_ID new_binary(Node_ID parent, Token_Kind op, Node_ID left, Node_ID right){
+		return nodes.put(Node{
+			.parent = parent,
+			.binary_expr = {.left = left, .right = right, .op = op},
+			.kind = Node_Binary,
+		});
+	}
+
+	attribute_force_inline auto get(Node_ID id){ return nodes.get(id); }
 };
 
-Result<AST, Syntax_Error> parse(Lexer lex);
+static inline
+AST* ast_make(Allocator allocator, usize initial_cap){
+	return make<AST>(allocator, AST{
+		.root = Node_ID{0},
+		.nodes = typed_arena_make<Node>(initial_cap, allocator),
+	});
+}
+
+Result<AST*, Syntax_Error> parse(Lexer lex, Allocator allocator);

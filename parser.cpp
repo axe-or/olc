@@ -3,7 +3,6 @@
 
 using Parser_Result = Result<Node_ID, Syntax_Error>;
 
-
 static inline
 constexpr Option<int> prefix_binding_power(Token_Kind k){
 	switch(k){
@@ -17,13 +16,6 @@ constexpr Option<int> prefix_binding_power(Token_Kind k){
     	return option_none();
     }
 }
-
-// Precedence    Operator
-//      70          *   /   %   %%   &  <<   >>
-//      60          +   -   |   ~
-//      50          ==  !=  <   >    <=  >=
-//      40          and
-//      30          or
 
 static inline
 constexpr Option<Pair<int>> infix_binding_power(Token_Kind k){
