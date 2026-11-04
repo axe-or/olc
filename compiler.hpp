@@ -1,6 +1,7 @@
 #pragma once
 
 #include "base.hpp"
+#include <source_location>
 
 //// Lexing
 
@@ -187,6 +188,14 @@ struct Lexer {
 	bool source_prefixed_with(String s){
 		if(current + s.len() > source.len()){ return false; }
 		return source.slice(current, current + s.len()) == s;
+	}
+
+	Token eof(){
+		return Token{
+			.start = source.len(),
+			.length = 0,
+			.type = Tk_EndOfFile,
+		};
 	}
 
 	template<Predicate<u8> F>

@@ -374,8 +374,18 @@ public:
 		return value_;
 	}
 
+	attribute_force_inline
 	T unwrap_unchecked() const {
 		return value_;
+	}
+
+	// Try to unwrap value into `out`, returns a new empty result on success, and one with the error otherwhise
+	Result<void, E> unwrap_into(T* out){
+		if(has_value_){
+			*out = value_;
+			return result_ok();
+		}
+		return result_err(error_);
 	}
 
 	E unwrap_err(caller_location) const {
@@ -385,6 +395,7 @@ public:
 		return error_;
 	}
 
+	attribute_force_inline
 	E unwrap_err_unchecked() const {
 		return error_;
 	}

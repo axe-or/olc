@@ -68,5 +68,40 @@ struct Parser {
 	Lexer lexer;
 	AST* ast;
 
+	bool expect_token(Token_Kind k){
+		Token tk = {};
+		if(!lexer.peek().unwrap_into(&tk).has_value()){
+			return false;
+		}
+		(void)lexer.next();
+
+		return true;
+	}
+
+	Parser_Result parse_expr_rec(i32 min_bp){
+		Node_ID lhs = {0};
+		Token first = {};
+
+		err_return(lexer.next().unwrap_into(&first));
+
+
+		if(first.type == Tk_ParenOpen){
+			err_return(parse_expr_rec(0).unwrap_into(&lhs));
+			lexer.peek().unwrap_or(lexer.eof());
+		}
+		else {
+			i32 rhs_bp = prefix_binding_power(first.type).unwrap_or(0);
+			if(rhs_bp){
+				auto operand = parse_expr_rec(rhs_bp);
+
+			}
+			else {
+				panic("not a prefix operator");
+			}
+		}
+
+		return {};
+	}
+
 	Parser_Result parse_file();
 };
