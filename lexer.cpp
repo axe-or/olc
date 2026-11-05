@@ -1,8 +1,9 @@
+#include "base.hpp"
 #include "compiler.hpp"
 
 // Get the next token and advance
 Result<Token, Syntax_Error> Lexer::next(){
-	err_return(skip_whitespace_and_comments());
+	or_return(skip_whitespace_and_comments());
 
 	usize start = current;
 	if(current >= source.len()){
@@ -43,6 +44,24 @@ Result<Token, Syntax_Error> Lexer::peek(){
 	auto token = next();
 	current = saved;
 	return token;
+}
+
+Result<Token, Syntax_Error> Lexer::expect(Token_Kind k){
+	usize saved = current;
+	auto [token, token_err] = next();
+	or_return(token_err);
+
+	if(token.type != k){
+		current = saved;
+
+		auto err = error_at(current, CompErr_UnexpectedToken);
+		err.expected.tk_type = k;
+		err.got.tk_type = token.type;
+
+		return result_err(err);
+	}
+
+	return result_ok(token);
 }
 
 // Consume a single UTF-8 encoded codepoint
@@ -223,10 +242,10 @@ Result<Token, Syntax_Error> Lexer::lex_string(){
 			break;
 		}
 		else if(c == '\\'){
-			err_return(lex_escape());
+			or_return(lex_escape());
 		}
 		else {
-			err_return(consume_rune());
+			or_return(consume_rune());
 		}
 	}
 
@@ -249,10 +268,10 @@ Result<Token, Syntax_Error> Lexer::lex_char(){
 	}
 
 	if(c == '\\'){
-		err_return(lex_escape());
+		or_return(lex_escape());
 	}
 	else {
-		err_return(consume_rune());
+		or_return(consume_rune());
 	}
 
 	if(!consume_char('\'')){

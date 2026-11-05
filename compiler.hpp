@@ -115,10 +115,12 @@ enum Compiler_Error_Type : u16 {
 
 	CompErr_UnexpectedToken,
 	CompErr_CardinalityMismatch,
+	CompErr_NonPrefixOperator,
+	CompErr_NonInfixOperator,
 };
 
 // Error for the lexing and parsing phase
-struct Syntax_Error {
+struct [[nodiscard]] Syntax_Error {
 	String filepath;
 	usize offset;
 	i32 line;
@@ -133,6 +135,9 @@ struct Syntax_Error {
 		rune codepoint;
 		Token_Kind tk_type;
 	} got;
+
+	// The zero value (`CompErr_None`) is not an error
+	constexpr bool is_error() const { return ::is_error(type); }
 };
 
 static inline
@@ -177,6 +182,9 @@ struct Lexer {
 
 	// Get the next token without advancing
 	Result<Token, Syntax_Error> peek();
+
+	// Advance if token is of kind `k`
+	Result<Token, Syntax_Error> expect(Token_Kind k);
 
 	// Byte `ahead` positions from the current one, 0 if past the end
 	u8 peek_char(usize ahead = 0){

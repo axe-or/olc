@@ -69,8 +69,7 @@ struct Parser {
 	AST* ast;
 
 	bool expect_token(Token_Kind k){
-		Token tk = {};
-		if(!lexer.peek().unwrap_into(&tk).has_value()){
+		if(is_error(lexer.peek().error)){
 			return false;
 		}
 		(void)lexer.next();
@@ -79,28 +78,30 @@ struct Parser {
 	}
 
 	Parser_Result parse_expr_rec(i32 min_bp){
-		Node_ID lhs = {0};
-		Token first = {};
-
-		err_return(lexer.next().unwrap_into(&first));
-
+		auto [first, first_err] = lexer.next();
+		or_return(first_err);
 
 		if(first.type == Tk_ParenOpen){
-			err_return(parse_expr_rec(0).unwrap_into(&lhs));
-			lexer.peek().unwrap_or(lexer.eof());
+			auto [lhs, lhs_err] = parse_expr_rec(0);
+			or_return(lhs_err);
+
+			auto [_, exp_err] = lexer.expect(Tk_ParenClose);
+			or_return(exp_err);
+
+			return result_ok(lhs);
 		}
 		else {
 			i32 rhs_bp = prefix_binding_power(first.type).unwrap_or(0);
 			if(rhs_bp){
 				auto operand = parse_expr_rec(rhs_bp);
-
-			}
-			else {
-				panic("not a prefix operator");
+			} else {
+				auto e = lexer.error_at(lexer.current, CompErr_NonInfixOperator);
+				e.got.tk_type = first.type;
+				return result_err(e);
 			}
 		}
 
-		return {};
+		todo();
 	}
 
 	Parser_Result parse_file();

@@ -9,14 +9,14 @@ void dump_tokens(String filepath, String source){
 	Lexer lexer = { .filepath = filepath, .source = source, .current = 0 };
 	for(;;){
 		auto res = lexer.next();
-		if(!res.has_value()){
-			Syntax_Error err = res.unwrap_err();
+		if(is_error(res.error)){
+			Syntax_Error err = res.error;
 			printf("%.*s:%d: error %d at offset %zu (got U+%04X)\n",
 				(int)filepath.len(), filepath.raw_data(), err.line, err.type, err.offset, (u32)err.got.codepoint);
 			return;
 		}
 
-		Token token = res.unwrap();
+		Token token = res.value;
 		String name = token_kind_name(token.type);
 		String text = source.slice(token.start, token.start + token.length);
 		printf("%-14.*s %5zu %3u  %.*s\n",

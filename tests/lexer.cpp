@@ -14,27 +14,27 @@ static bool lexes_to(String source, Token_Kind const (&expected)[N]){
 	Lexer lexer = lexer_make(source);
 	for(usize i = 0; i < N; i += 1){
 		auto res = lexer.next();
-		if(!res.has_value() || res.unwrap().type != expected[i]){ return false; }
+		if(is_error(res.error) || res.value.type != expected[i]){ return false; }
 	}
 	auto res = lexer.next();
-	return res.has_value() && res.unwrap().type == Tk_EndOfFile;
+	return !is_error(res.error) && res.value.type == Tk_EndOfFile;
 }
 
 // `source` produces no tokens besides EOF
 static bool lexes_nothing(String source){
 	Lexer lexer = lexer_make(source);
 	auto res = lexer.next();
-	return res.has_value() && res.unwrap().type == Tk_EndOfFile;
+	return !is_error(res.error) && res.value.type == Tk_EndOfFile;
 }
 
 // All of `source` is a single token of `type`
 static bool lexes_one(String source, Token_Kind type){
 	Lexer lexer = lexer_make(source);
 	auto res = lexer.next();
-	if(!res.has_value()){ return false; }
-	Token token = res.unwrap();
+	if(is_error(res.error)){ return false; }
+	Token token = res.value;
 	return token.type == type && token.start == 0 && token.length == source.len()
-		&& lexer.next().unwrap_or({}).type == Tk_EndOfFile;
+		&& lexer.next().value.type == Tk_EndOfFile;
 }
 
 // Lexing `source` eventually fails with `type` at `offset`
@@ -42,11 +42,11 @@ static bool fails_with(String source, Compiler_Error_Type type, usize offset){
 	Lexer lexer = lexer_make(source);
 	for(;;){
 		auto res = lexer.next();
-		if(!res.has_value()){
-			Syntax_Error err = res.unwrap_err();
+		if(is_error(res.error)){
+			Syntax_Error err = res.error;
 			return err.type == type && err.offset == offset;
 		}
-		if(res.unwrap().type == Tk_EndOfFile){ return false; }
+		if(res.value.type == Tk_EndOfFile){ return false; }
 	}
 }
 
@@ -58,9 +58,9 @@ bool lexer_tests(){
 		check(lexes_nothing(" \t\r\n  "));
 
 		Lexer lexer = lexer_make("   ");
-		Token eof = lexer.next().unwrap();
+		Token eof = lexer.next().value;
 		check(eof.type == Tk_EndOfFile && eof.start == 3 && eof.length == 0);
-		check(lexer.next().unwrap().type == Tk_EndOfFile);
+		check(lexer.next().value.type == Tk_EndOfFile);
 	});
 
 	ok &= test("lexer: identifiers and keywords", [](Test& t){
@@ -208,7 +208,7 @@ bool lexer_tests(){
 
 		// Non-ASCII reports the decoded codepoint
 		Lexer lexer = lexer_make("\xc3\xa9");
-		Syntax_Error err = lexer.next().unwrap_err();
+		Syntax_Error err = lexer.next().error;
 		check(err.type == CompErr_UnexpectedChar && err.got.codepoint == 0xe9);
 	});
 
@@ -217,7 +217,7 @@ bool lexer_tests(){
 		Lexer lexer = lexer_make(source);
 		Token tokens[5] = {};
 		for(usize i = 0; i < 5; i += 1){
-			tokens[i] = lexer.next().unwrap();
+			tokens[i] = lexer.next().value;
 		}
 
 		check(tokens[0].type == Tk_Var && tokens[0].start == 0 && tokens[0].length == 3);
@@ -230,18 +230,18 @@ bool lexer_tests(){
 
 	ok &= test("lexer: peek", [](Test& t){
 		Lexer lexer = lexer_make("a + b");
-		check(lexer.peek().unwrap().type == Tk_Identifier);
-		check(lexer.peek().unwrap().type == Tk_Identifier);
-		check(lexer.next().unwrap().type == Tk_Identifier);
-		check(lexer.peek().unwrap().type == Tk_Plus);
-		check(lexer.next().unwrap().type == Tk_Plus);
-		check(lexer.next().unwrap().type == Tk_Identifier);
-		check(lexer.peek().unwrap().type == Tk_EndOfFile);
-		check(lexer.next().unwrap().type == Tk_EndOfFile);
+		check(lexer.peek().value.type == Tk_Identifier);
+		check(lexer.peek().value.type == Tk_Identifier);
+		check(lexer.next().value.type == Tk_Identifier);
+		check(lexer.peek().value.type == Tk_Plus);
+		check(lexer.next().value.type == Tk_Plus);
+		check(lexer.next().value.type == Tk_Identifier);
+		check(lexer.peek().value.type == Tk_EndOfFile);
+		check(lexer.next().value.type == Tk_EndOfFile);
 
 		// Peeking an error does not advance either
 		Lexer bad = lexer_make("!");
-		check(!bad.peek().has_value());
+		check(is_error(bad.peek().error));
 		check(bad.current == 0);
 	});
 
@@ -250,8 +250,8 @@ bool lexer_tests(){
 		Syntax_Error err = {};
 		for(;;){
 			auto res = lexer.next();
-			if(!res.has_value()){
-				err = res.unwrap_err();
+			if(is_error(res.error)){
+				err = res.error;
 				break;
 			}
 		}
