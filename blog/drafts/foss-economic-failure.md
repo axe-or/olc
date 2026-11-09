@@ -3,16 +3,22 @@ draft: true
 title: The Free and Open Source confusion
 +++
 
-The free software movement's "four freedoms" conflate the user's control over their own copy, and the right to distribution. Treating them as a single moral claim has had far-reaching consequences for the software industry. It normalized giving away the very rights that let small teams make a living from high-quality software.
+The free software movement's "four freedoms" conflate the user's control over their own copy, and
+the right to distribution. Treating them as a single moral claim has had far-reaching consequences
+for the software industry. It normalized giving away the very rights that let small teams make a
+living from high-quality software.
 
 # Definitions
 
-To first understand what FOSS and OSS are. FOSS or "Free and open source" aka "libre" software is software in which a particular set of freedoms as defined by the FSF (free software foundation) are guaranteed by its license agreement. OSS is nearly identical, however the criteria are defined by the OSI (open source initiative).
+FOSS or "Free and open source" aka "libre" software is software in which a particular set of
+freedoms as defined by the FSF (free software foundation) are guaranteed by its license agreement.
+OSS is nearly identical, however the criteria are defined by the OSI (open source initiative).
 
-> **Edit (replaces above):** FOSS ("free and open source", or "libre") software is software whose license guarantees a particular set of freedoms, as defined by the FSF (Free Software Foundation). OSS ("open source software") is nearly identical in practice, but its criteria are defined by the OSI (Open Source Initiative).
-
-Throughout this article the term FOSS shall be used to refer to these licensing models, it is important to keep in mind however that the FSF and the OSI have distinct philosophies. The FSF is significantly more activist and its four freedoms are part of its larger movement for user agency and distribution freedom. Meanwhile the OSI is more corporate and pragmatic, typically "selling" open source to companies as a way to build a solid auditable foundation with community support.
-
+Throughout this article the term FOSS shall be used to refer to these licensing models, it is
+important to keep in mind however that the FSF and the OSI have distinct philosophies. The FSF is
+significantly more activist and its four freedoms are part of its larger movement for user agency
+and distribution freedom. Meanwhile the OSI is more corporate and pragmatic, typically "selling"
+open source to companies as a way to build a solid auditable foundation with community support.
 # The 4 freedoms
 
 | Freedom                                  | What it grants                           | Category         |
@@ -22,51 +28,96 @@ Throughout this article the term FOSS shall be used to refer to these licensing 
 | 2: redistribute copies                   | Handing copies to others                 | **Distribution** |
 | 3: distribute modified versions          | Handing your changes to others           | **Distribution** |
 
-Only freedoms 0 and 1 concern what a user can do with _their own copy_. Freedoms 2 and 3 concern what the user can do _for third parties_. They turn every customer into a potential distributor of the product. Nothing about ensuring the user properly "own" their copy requires the second pair. A license can grant full control over your copy, including the source, while reserving the right to distribute it.
+Only freedoms 0 and 1 concern what a user can do with _their own copy_. Freedoms 2 and 3 concern
+what the user can do _for third parties_. They turn every customer into a potential distributor of
+the product. Nothing about ensuring the user properly "own" their copy requires the second pair. A
+license can grant full control over your copy, including the source, while reserving the right to
+distribute it. Another thing is that freedom 1 does not require source at all, reverse engineering
+exists.
 
-The fatal flaw of the FOSS movement is that it treats three separate things as one: disclosing the source code, granting the right to redistribute it, and respecting user agency. I firmly believe in user agency. But it can be had without the second item, and the second item is what makes the work commercially unviable. It lets people with zero skin in the game re-sell or give away what you made.
+The fatal flaw of the FOSS movement is that it treats three separate things as one: disclosing the
+source code, granting the right to redistribute it, and respecting user agency. I firmly believe in
+user agency. But it can be had without the second item, and the second item is what makes the work
+commercially unviable. It lets people with zero skin in the game re-sell or give away what you made.
 
 # Copyright and Skin in the Game
 
 To see why distribution rights matter so much, we need to look at what copyright actually protects.
 
-Unlike regular property rights, which have physical barriers around them that more clearly delineate to whom it belongs, ideas don't have that, there's no "natural impedance" to ideas such as a fence to jump over, an object to lift, there's only a negligible cost of making a copy.
-
+Unlike regular property rights, which have physical barriers around them that more clearly delineate
+to whom it belongs, ideas don't have that, there's no "natural impedance" to ideas such as a fence
+to jump over, an object to lift, there's only a negligible cost of making a copy.
 The common defense of copyright (ignoring its misuses and how outrageously long it is stretched in modern legislation) is quite simple:
 
 1. Creating good original work is difficult
+
 2. Copying original work is trivial to the point of being able to easily "kill off" the original author in the market
+
 3. To curb these incentives, an artificial exclusion right to copy is given to the author, for a particular amount of time
 
-In effect, copyright extends the mechanisms of private property (the rights to sell, lease, or license, and to inherit) to an _abstract form_: a story, a melody, a program. That makes it inherently fuzzier than ownership of a physical thing. Strictly, copyright protects the expression rather than the idea itself.
+In effect, copyright extends the mechanisms of private property (the rights to sell, lease, or
+license, and to inherit) to an _abstract form_: a story, a melody, a program. That makes it
+inherently fuzzier than ownership of a physical thing. Strictly, copyright protects the expression
+rather than the idea itself.
+Thus, copyright is a double-edged sword, in one way it is used to put "skin in the game" of those
+who contribute the creation in question, although it can also be used for rent-seeking behavior
+(that's why a time limit must exist).
 
-Thus, copyright is a double-edged sword, in one way it is used to put "skin in the game" of those who contribute the creation in question, although it can also be used for rent-seeking behavior (that's why a time limit must exist).
+Software is particularly sensitive to this, the cost of copying books is quite small to writing one
+but still requires a printer and ink, the cost of copying software may as well be just a couple of
+Watts and some memory.
 
-Software is particularly sensitive to this, the cost of copying books is quite small to writing one but still requires a printer and ink, the cost of copying software may as well be just a couple of Watts and some memory.
-
-Because writing good software is difficult (yes, even with LLMs) the copyright system serves as a legal barrier to allow for software developers to make a living, in the same way authors and artists do.
+Because writing good software is difficult (yes, even with LLMs) the copyright system serves as a
+legal barrier to allow for software developers to make a living, in the same way authors and artists
+do.
 
 # Giving it for free!!!
 
-FOSS effectively uses the copyright system against itself, because copyright allows the author to add licensing terms, just as one can make a contract to lease a particular physical property. By making the licensing term something like this:
+FOSS effectively uses the copyright system against itself, because copyright allows the author to
+add licensing terms, just as one can make a contract to lease a particular physical property. By
+making the licensing term something like this:
 
 > Copyright <YEAR> <COPYRIGHT HOLDER>
 >
-> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+> associated documentation files (the “Software”), to deal in the Software without restriction,
+> including without limitation the rights to use, copy, modify, merge, publish, distribute,
+> sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
 >
-> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+> The above copyright notice and this permission notice shall be included in all copies or
+> substantial portions of the Software.
 >
-> THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+> THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+> NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+> NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
+> OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+> CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 Looking at the list of granted rights, we can see that only "use" and "modify" are actually relevant for a customer wanting to exert agency over the product he aquired.
 
-The author "gives away" his rights. Legally speaking, the author does still retain the copyright, but it is _licensed_ for extremely generous conditions like "just give me credit, and don't sue me". That by itself is not wrong in the slightest but I want to point out something very important here, what the author is doing here is _charity_, this is a _gift_ and certainly not a viable business model.
+The author "gives away" his rights. Legally speaking, the author does still retain the copyright,
+but it is _licensed_ for extremely generous conditions like "just give me credit, and don't sue me".
+That by itself is not wrong in the slightest but I want to point out something very important here,
+what the author is doing here is _charity_, this is a _gift_ and certainly not a viable business
+model.
 
-Disclosing the source code has an inherent cost in revealing competitive advantages and the know-how which can be the difference between having a business or not. FOSS adds another massive cost, it couples forsaking the right to enforce the distribution rights of the source artifact. However, it does not have to be this way, nothing requires that these two rights be coupled and leased at once to the user.
+Disclosing the source code has an inherent cost in revealing competitive advantages and the know-how
+which can be the difference between having a business or not. FOSS adds another massive cost, it
+couples forsaking the right to enforce the distribution rights of the source artifact. However, it
+does not have to be this way, nothing requires that these two rights be coupled and leased at once
+to the user.
 
-Copyleft licenses like the GPL don't fix this, because they protect the wrong thing. The GPL protects the _commons_: it ensures derivative work stays open. It does nothing for the _author's income_, thus making enforcement weak. Since the author typically earns nothing from the work, there's no time and money for lawyers. Violations go unchallenged unless an organization like the Software Freedom Conservancy (SFC) takes up the case, which is a slow, expensive process funded by charity.
+Copyleft licenses like the GPL don't fix this, because they protect the wrong thing. The GPL
+protects the _commons_: it ensures derivative work stays open. It does nothing for the _author's
+income_, thus making enforcement weak. Since the author typically earns nothing from the work,
+there's no time and money for lawyers. Violations go unchallenged unless an organization like the
+Software Freedom Conservancy (SFC) takes up the case, which is a slow, expensive process funded by
+charity.
 
-FOSS also indirectly incentivizes people to just not pay, it is supposedly "Free as in Free Speech" but in practice it is mostly "Free as in beer" because there's no actual incentive to buy outside of a pure act of charity for the author.
+FOSS also indirectly incentivizes people to just not pay, it is supposedly "Free as in Free Speech"
+but in practice it is mostly "Free as in beer" because there's no actual incentive to buy outside of
+a pure act of charity for the author.
 
 # Companies that "sell" free software
 
@@ -96,7 +147,9 @@ agency. Something that FOSS has trouble making due to the aforementioned bad inc
 money and influence required for that. This can be done by better licensing options that don't
 require completely sabotaging the commercial viability of the product.
 
-User agency and source availability are largely orthogonal. Here, "user respecting" means software that doesn't force telemetry, impose strict DRM, require being online, or try to stop users from changing their own general-purpose computing device:
+User agency and source availability are largely orthogonal. Here, "user respecting" means software
+that doesn't force telemetry, impose strict DRM, require being online, or try to stop users from
+changing their own general-purpose computing device:
 
 | Software             | Source Availability | User respecting? |
 | -------------------- | ------------------- | ---------------- |
@@ -123,4 +176,5 @@ creates an obligation to give something back. FOSS is a gift economy in which th
 (cloud providers, big tech, and now LLM training) take far more than they return. That imbalance is
 the subject of a future article here.
 
-The fix is not to abandon user agency but to stop treating it as inseparable from distribution rights.
+The fix is **not** to abandon user agency but to stop treating it as inseparable from distribution
+rights.
